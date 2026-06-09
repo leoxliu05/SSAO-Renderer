@@ -48,7 +48,12 @@ Useful runtime options:
 ./build/SSAO_Renderer \
   --area-light-samples 8 \
   --shadow-map-size 512 \
-  --output build/render.ppm
+  --ambient-strength 0.20 \
+  --light-intensity 1.00 \
+  --shadow-min-light 0.25 \
+  --output build/render.ppm \
+  --normal-output build/normal_debug.ppm \
+  --depth-output build/depth_debug.ppm
 ```
 
 `--area-light-samples N` samples the Cornell Box rectangle light into `N x N`
@@ -58,11 +63,22 @@ shadow memory use. Each point light gets its own depth cubemap shadow map, and
 the renderer accumulates lighting in multiple additive passes so it is not
 limited by the number of simultaneously bound fragment textures.
 
+`--ambient-strength` is a simple rasterization fill term that stands in for the
+Cornell Box indirect diffuse bounce that a path tracer would normally capture.
+`--light-intensity` scales direct Blinn-Phong lighting from the sampled area
+light.
+`--shadow-min-light` keeps a controllable amount of direct-light contribution
+even for fully shadowed points, which prevents raster shadows from crushing to
+black when no true indirect bounce is being computed.
+
+Color accumulation uses an `RGBA16F` framebuffer and point-light shadow maps use
+small PCF filtering to reduce additive-pass banding and hard shadow-map stripes.
+
 ## Outputs
 
-- `render.ppm`: base Cornell Box rasterization.
-- `normal_debug.ppm`: normal attachment visualized as RGB.
-- `depth_debug.ppm`: depth attachment visualized as grayscale.
+- `build/render.ppm`: base Cornell Box rasterization.
+- `build/normal_debug.ppm`: normal attachment visualized as RGB.
+- `build/depth_debug.ppm`: depth attachment visualized as grayscale.
 
 The default camera matches the HW7 Cornell Box convention: eye
 `(278, 273, -800)`, looking into the box.

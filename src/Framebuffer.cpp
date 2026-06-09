@@ -49,11 +49,19 @@ void writePpm(const std::filesystem::path& path, int width, int height, const st
     }
 }
 
-std::vector<unsigned char> readRgbPixels(int width, int height)
+std::vector<unsigned char> readColorPixels(int width, int height)
 {
+    std::vector<float> rgba(static_cast<size_t>(width) * height * 4);
     std::vector<unsigned char> rgb(static_cast<size_t>(width) * height * 3);
+
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, rgb.data());
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_FLOAT, rgba.data());
+
+    for (size_t i = 0, j = 0; i < rgba.size(); i += 4, j += 3) {
+        rgb[j + 0] = static_cast<unsigned char>(std::clamp(rgba[i + 0], 0.0f, 1.0f) * 255.0f);
+        rgb[j + 1] = static_cast<unsigned char>(std::clamp(rgba[i + 1], 0.0f, 1.0f) * 255.0f);
+        rgb[j + 2] = static_cast<unsigned char>(std::clamp(rgba[i + 2], 0.0f, 1.0f) * 255.0f);
+    }
     return rgb;
 }
 
@@ -106,7 +114,7 @@ std::vector<unsigned char> readDepthPixels(int width, int height)
 Framebuffer::Framebuffer(int width, int height)
     : width_(width)
     , height_(height)
-    , colorTexture_(createColorTexture(width, height, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE))
+    , colorTexture_(createColorTexture(width, height, GL_RGBA16F, GL_RGBA, GL_FLOAT))
     , normalTexture_(createColorTexture(width, height, GL_RGBA16F, GL_RGBA, GL_FLOAT))
     , depthTexture_(createDepthTexture(width, height))
 {
@@ -180,7 +188,7 @@ void Framebuffer::writeColor(const std::filesystem::path& path) const
 {
     bind();
     glReadBuffer(GL_COLOR_ATTACHMENT0);
-    writePpm(path, width_, height_, readRgbPixels(width_, height_));
+    writePpm(path, width_, height_, readColorPixels(width_, height_));
 }
 
 void Framebuffer::writeNormalDebug(const std::filesystem::path& path) const

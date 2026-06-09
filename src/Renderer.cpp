@@ -61,6 +61,9 @@ uniform vec3 uCameraPosition;
 uniform samplerCube uShadowMap;
 uniform float uFarPlane;
 uniform float uInvLightCount;
+uniform float uAmbientStrength;
+uniform float uLightIntensity;
+uniform float uShadowMinLight;
 uniform float uShininess;
 uniform float uSpecularStrength;
 uniform bool uEmissive;
@@ -75,8 +78,23 @@ float pointShadow(vec3 normal) {
 
     vec3 lightDir = normalize(uLightPosition - vWorldPosition);
     float bias = max(0.006 * (1.0 - abs(dot(normal, lightDir))), 0.0015);
-    float closestDepth = texture(uShadowMap, lightToFragment).r;
-    return currentDepth - bias > closestDepth ? 0.0 : 1.0;
+    float radius = mix(1.5, 4.0, currentDepth);
+    vec3 offsets[7] = vec3[](
+        vec3(0.0, 0.0, 0.0),
+        vec3(1.0, 0.0, 0.0),
+        vec3(-1.0, 0.0, 0.0),
+        vec3(0.0, 1.0, 0.0),
+        vec3(0.0, -1.0, 0.0),
+        vec3(0.0, 0.0, 1.0),
+        vec3(0.0, 0.0, -1.0)
+    );
+
+    float visibility = 0.0;
+    for (int i = 0; i < 7; ++i) {
+        float closestDepth = texture(uShadowMap, lightToFragment + offsets[i] * radius).r;
+        visibility += currentDepth - bias > closestDepth ? 0.0 : 1.0;
+    }
+    return visibility / 7.0;
 }
 
 void main() {
@@ -96,12 +114,12 @@ void main() {
 
         float diffuseFactor = max(abs(dot(n, l)), 0.0);
         float specularFactor = pow(max(abs(dot(n, h)), 0.0), uShininess);
-        float shadow = pointShadow(n);
+        float shadow = mix(uShadowMinLight, 1.0, pointShadow(n));
 
-        vec3 ambient = uFirstLightingPass ? ka * 0.14 : vec3(0.0);
+        vec3 ambient = uFirstLightingPass ? ka * uAmbientStrength : vec3(0.0);
         vec3 diffuse = kd * uLightColor * diffuseFactor;
         vec3 specular = ks * uLightColor * specularFactor;
-        lit = ambient + (diffuse + specular) * shadow * 0.86 * uInvLightCount;
+        lit = ambient + (diffuse + specular) * shadow * uLightIntensity * uInvLightCount;
     }
 
     oColor = vec4(lit, 1.0);
@@ -324,6 +342,9 @@ void Renderer::render(const AppConfig& config)
         shader.setMat4("uView", cornellView());
         shader.setMat4("uProjection", cornellProjection(config));
         shader.setVec3("uCameraPosition", cornellCameraPosition());
+        shader.setFloat("uAmbientStrength", config.ambientStrength);
+        shader.setFloat("uLightIntensity", config.lightIntensity);
+        shader.setFloat("uShadowMinLight", config.shadowMinLight);
         shader.setFloat("uShininess", 32.0f);
         shader.setFloat("uSpecularStrength", 0.0f);
 

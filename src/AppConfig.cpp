@@ -13,6 +13,9 @@ void printUsage()
         << "Usage: SSAO_Renderer [--width N] [--height N]\n"
         << "                     [--area-light-samples N]\n"
         << "                     [--shadow-map-size N]\n"
+        << "                     [--ambient-strength value]\n"
+        << "                     [--light-intensity value]\n"
+        << "                     [--shadow-min-light value]\n"
         << "                     [--model-dir path]\n"
         << "                     [--output render.ppm]\n"
         << "                     [--normal-output normal_debug.ppm]\n"
@@ -41,6 +44,12 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.areaLightSamplesPerSide = std::stoi(requireValue("--area-light-samples"));
         } else if (arg == "--shadow-map-size") {
             config.shadowMapSize = std::stoi(requireValue("--shadow-map-size"));
+        } else if (arg == "--ambient-strength") {
+            config.ambientStrength = std::stof(requireValue("--ambient-strength"));
+        } else if (arg == "--light-intensity") {
+            config.lightIntensity = std::stof(requireValue("--light-intensity"));
+        } else if (arg == "--shadow-min-light") {
+            config.shadowMinLight = std::stof(requireValue("--shadow-min-light"));
         } else if (arg == "--model-dir") {
             config.modelDir = requireValue("--model-dir");
         } else if (arg == "--output") {
@@ -68,6 +77,15 @@ AppConfig parseAppConfig(int argc, char** argv)
     }
     if (config.shadowMapSize <= 0) {
         throw std::runtime_error("shadow map size must be positive");
+    }
+    if (config.ambientStrength < 0.0f) {
+        throw std::runtime_error("ambient strength must be non-negative");
+    }
+    if (config.lightIntensity < 0.0f) {
+        throw std::runtime_error("light intensity must be non-negative");
+    }
+    if (config.shadowMinLight < 0.0f || config.shadowMinLight > 1.0f) {
+        throw std::runtime_error("shadow min light must be in [0, 1]");
     }
     return config;
 }
