@@ -1,0 +1,315 @@
+#include "ssao/Renderer.hpp"
+
+#include "ssao/AreaLight.hpp"
+#include "ssao/CornellBoxScene.hpp"
+#include "ssao/Framebuffer.hpp"
+#include "ssao/GpuMesh.hpp"
+#include "ssao/Math.hpp"
+#include "ssao/ObjLoader.hpp"
+#include "ssao/ShadowMap.hpp"
+#include "ssao/ShaderProgram.hpp"
+
+#include <GL/glew.h>
+#ifdef __APPLE__
+#include <OpenGL/OpenGL.h>
+#endif
+
+#include <iostream>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+
+const char* kVertexShader = R"GLSL(
+#version 330 core
+
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec3 aColor;
+
+uniform mat4 uView;
+uniform mat4 uProjection;
+
+out vec3 vWorldPosition;
+out vec3 vNormal;
+out vec3 vColor;
+
+void main() {
+    vWorldPosition = aPosition;
+    vNormal = normalize(aNormal);
+    vColor = aColor;
+    gl_Position = uProjection * uView * vec4(aPosition, 1.0);
+}
+)GLSL";
+
+const char* kFragmentShader = R"GLSL(
+#version 330 core
+
+#define MAX_AREA_LIGHTS 16
+
+layout(location = 0) out vec4 oColor;
+layout(location = 1) out vec4 oNormal;
+
+in vec3 vWorldPosition;
+in vec3 vNormal;
+in vec3 vColor;
+
+uniform int uLightCount;
+uniform vec3 uLightPositions[MAX_AREA_LIGHTS];
+uniform vec3 uLightColors[MAX_AREA_LIGHTS];
+uniform samplerCube uShadowMaps[MAX_AREA_LIGHTS];
+uniform float uFarPlane;
+uniform bool uEmissive;
+
+float pointShadow(int lightIndex, vec3 normal) {
+    vec3 lightToFragment = vWorldPosition - uLightPositions[lightIndex];
+    float currentDepth = length(lightToFragment) / uFarPlane;
+    if (currentDepth >= 1.0) {
+        return 1.0;
+    }
+
+    vec3 lightDir = normalize(uLightPositions[lightIndex] - vWorldPosition);
+    float bias = max(0.006 * (1.0 - abs(dot(normal, lightDir))), 0.0015);
+    float closestDepth = texture(uShadowMaps[lightIndex], lightToFragment).r;
+    return currentDepth - bias > closestDepth ? 0.0 : 1.0;
+}
+
+void main() {
+    vec3 n = normalize(vNormal);
+    vec3 direct = vec3(0.0);
+
+    for (int i = 0; i < uLightCount; ++i) {
+        vec3 l = normalize(uLightPositions[i] - vWorldPosition);
+        float diffuse = max(abs(dot(n, l)), 0.0);
+        direct += uLightColors[i] * diffuse * pointShadow(i, n);
+    }
+
+    direct /= max(float(uLightCount), 1.0);
+    vec3 lit = vColor * (0.14 + 0.86 * direct);
+
+    if (uEmissive) {
+        lit = vec3(1.0, 0.94, 0.78);
+    }
+
+    oColor = vec4(lit, 1.0);
+    oNormal = vec4(n * 0.5 + 0.5, 1.0);
+}
+)GLSL";
+
+const char* kShadowVertexShader = R"GLSL(
+#version 330 core
+
+layout(location = 0) in vec3 aPosition;
+
+uniform mat4 uLightViewProjection;
+
+out vec3 vWorldPosition;
+
+void main() {
+    vWorldPosition = aPosition;
+    gl_Position = uLightViewProjection * vec4(aPosition, 1.0);
+}
+)GLSL";
+
+const char* kShadowFragmentShader = R"GLSL(
+#version 330 core
+
+in vec3 vWorldPosition;
+
+uniform vec3 uLightPosition;
+uniform float uFarPlane;
+
+void main() {
+    gl_FragDepth = length(vWorldPosition - uLightPosition) / uFarPlane;
+}
+)GLSL";
+
+class OpenGlContext {
+public:
+    OpenGlContext()
+    {
+#ifdef __APPLE__
+        CGLPixelFormatAttribute attributes[] = {
+            kCGLPFAOpenGLProfile,
+            static_cast<CGLPixelFormatAttribute>(kCGLOGLPVersion_3_2_Core),
+            kCGLPFAAccelerated,
+            kCGLPFAColorSize,
+            static_cast<CGLPixelFormatAttribute>(24),
+            kCGLPFADepthSize,
+            static_cast<CGLPixelFormatAttribute>(24),
+            kCGLPFAAlphaSize,
+            static_cast<CGLPixelFormatAttribute>(8),
+            static_cast<CGLPixelFormatAttribute>(0),
+        };
+
+        CGLPixelFormatObj pixelFormat = nullptr;
+        GLint pixelFormatCount = 0;
+        CGLError error = CGLChoosePixelFormat(attributes, &pixelFormat, &pixelFormatCount);
+        if (error != kCGLNoError || pixelFormat == nullptr) {
+            throw std::runtime_error("failed to choose CGL pixel format");
+        }
+
+        error = CGLCreateContext(pixelFormat, nullptr, &context_);
+        CGLDestroyPixelFormat(pixelFormat);
+        if (error != kCGLNoError || context_ == nullptr) {
+            throw std::runtime_error("failed to create CGL context");
+        }
+
+        error = CGLSetCurrentContext(context_);
+        if (error != kCGLNoError) {
+            throw std::runtime_error("failed to make CGL context current");
+        }
+#else
+        throw std::runtime_error("headless OpenGL context setup is implemented for macOS in this scaffold");
+#endif
+
+        glewExperimental = GL_TRUE;
+        GLenum glewError = glewInit();
+        glGetError();
+        if (glewError != GLEW_OK) {
+            throw std::runtime_error(reinterpret_cast<const char*>(glewGetErrorString(glewError)));
+        }
+    }
+
+    ~OpenGlContext()
+    {
+#ifdef __APPLE__
+        CGLSetCurrentContext(nullptr);
+        if (context_ != nullptr) {
+            CGLDestroyContext(context_);
+        }
+#endif
+    }
+
+    OpenGlContext(const OpenGlContext&) = delete;
+    OpenGlContext& operator=(const OpenGlContext&) = delete;
+
+private:
+#ifdef __APPLE__
+    CGLContextObj context_ = nullptr;
+#endif
+};
+
+void checkGl(const std::string& label)
+{
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::ostringstream oss;
+        oss << label << " failed with GL error 0x" << std::hex << err;
+        throw std::runtime_error(oss.str());
+    }
+}
+
+std::vector<GpuMesh> uploadSceneMeshes(const AppConfig& config)
+{
+    std::vector<GpuMesh> meshes;
+    for (const SceneObject& object : loadCornellBoxScene(config.modelDir)) {
+        std::vector<Vertex> vertices = loadObjMesh(object.objPath, object.color);
+        meshes.emplace_back(object.objPath.filename().string(), vertices, object.emissive);
+    }
+    return meshes;
+}
+
+std::vector<ShadowCubeMap> renderShadowMaps(const AppConfig& config,
+    const std::vector<GpuMesh>& meshes,
+    const std::vector<PointLight>& lights,
+    const ShaderProgram& shadowShader,
+    float farPlane)
+{
+    std::vector<ShadowCubeMap> shadowMaps;
+    shadowMaps.reserve(lights.size());
+
+    for (const PointLight& light : lights) {
+        shadowMaps.emplace_back(config.shadowMapSize);
+        shadowMaps.back().render(meshes, shadowShader, light.position, farPlane);
+    }
+    return shadowMaps;
+}
+
+void bindAreaLightUniforms(const ShaderProgram& shader,
+    const std::vector<PointLight>& lights,
+    const std::vector<ShadowCubeMap>& shadowMaps,
+    float farPlane)
+{
+    shader.setInt("uLightCount", static_cast<int>(lights.size()));
+    shader.setFloat("uFarPlane", farPlane);
+
+    for (size_t i = 0; i < lights.size(); ++i) {
+        const std::string index = std::to_string(i);
+        shadowMaps[i].bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+        shader.setInt(("uShadowMaps[" + index + "]").c_str(), static_cast<int>(i));
+        shader.setVec3(("uLightPositions[" + index + "]").c_str(), lights[i].position);
+        shader.setVec3(("uLightColors[" + index + "]").c_str(), lights[i].color);
+    }
+}
+
+Mat4 cornellView()
+{
+    return lookAt(
+        Vec3(278.0f, 273.0f, -800.0f),
+        Vec3(278.0f, 273.0f, 279.6f),
+        Vec3(0.0f, 1.0f, 0.0f));
+}
+
+Mat4 cornellProjection(const AppConfig& config)
+{
+    return perspective(
+        radians(39.3077f),
+        static_cast<float>(config.width) / static_cast<float>(config.height),
+        0.1f,
+        2500.0f);
+}
+
+} // namespace
+
+void Renderer::render(const AppConfig& config)
+{
+    OpenGlContext context;
+    GLint maxTextureUnits = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
+
+    {
+        ShaderProgram shader(kVertexShader, kFragmentShader);
+        ShaderProgram shadowShader(kShadowVertexShader, kShadowFragmentShader);
+        std::vector<GpuMesh> meshes = uploadSceneMeshes(config);
+        std::vector<PointLight> lights = sampleCornellAreaLight(config.areaLightSamplesPerSide);
+        if (static_cast<int>(lights.size()) > maxTextureUnits) {
+            throw std::runtime_error("not enough fragment texture units for all point-light shadow maps");
+        }
+
+        constexpr float shadowFarPlane = 1200.0f;
+        std::vector<ShadowCubeMap> shadowMaps = renderShadowMaps(config, meshes, lights, shadowShader, shadowFarPlane);
+
+        Framebuffer framebuffer(config.width, config.height);
+
+        framebuffer.bind();
+        glViewport(0, 0, config.width, config.height);
+        glEnable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+        glClearColor(0.02f, 0.025f, 0.03f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        shader.use();
+        shader.setMat4("uView", cornellView());
+        shader.setMat4("uProjection", cornellProjection(config));
+        bindAreaLightUniforms(shader, lights, shadowMaps, shadowFarPlane);
+
+        for (const GpuMesh& mesh : meshes) {
+            shader.setBool("uEmissive", mesh.emissive());
+            mesh.draw();
+        }
+        glBindVertexArray(0);
+        checkGl("render");
+
+        framebuffer.writeColor(config.colorOutput);
+        framebuffer.writeNormalDebug(config.normalOutput);
+        framebuffer.writeDepthDebug(config.depthOutput);
+    }
+
+    std::cout << "Wrote " << config.colorOutput << "\n";
+    std::cout << "Wrote " << config.normalOutput << "\n";
+    std::cout << "Wrote " << config.depthOutput << "\n";
+}
