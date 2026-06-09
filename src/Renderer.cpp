@@ -35,12 +35,12 @@ uniform mat4 uProjection;
 
 out vec3 vWorldPosition;
 out vec3 vNormal;
-out vec3 vColor;
+out vec3 vKd;
 
 void main() {
     vWorldPosition = aPosition;
     vNormal = normalize(aNormal);
-    vColor = aColor;
+    vKd = aColor;
     gl_Position = uProjection * uView * vec4(aPosition, 1.0);
 }
 )GLSL";
@@ -53,13 +53,16 @@ layout(location = 1) out vec4 oNormal;
 
 in vec3 vWorldPosition;
 in vec3 vNormal;
-in vec3 vColor;
+in vec3 vKd;
 
 uniform vec3 uLightPosition;
 uniform vec3 uLightColor;
+uniform vec3 uCameraPosition;
 uniform samplerCube uShadowMap;
 uniform float uFarPlane;
 uniform float uInvLightCount;
+uniform float uShininess;
+uniform float uSpecularStrength;
 uniform bool uEmissive;
 uniform bool uFirstLightingPass;
 
@@ -83,12 +86,22 @@ void main() {
     if (uEmissive) {
         lit = uFirstLightingPass ? vec3(1.0, 0.94, 0.78) : vec3(0.0);
     } else {
+        vec3 ka = vKd;
+        vec3 kd = vKd;
+        vec3 ks = vec3(uSpecularStrength);
+
         vec3 l = normalize(uLightPosition - vWorldPosition);
-        float diffuse = max(abs(dot(n, l)), 0.0);
+        vec3 v = normalize(uCameraPosition - vWorldPosition);
+        vec3 h = normalize(l + v);
+
+        float diffuseFactor = max(abs(dot(n, l)), 0.0);
+        float specularFactor = pow(max(abs(dot(n, h)), 0.0), uShininess);
         float shadow = pointShadow(n);
-        vec3 ambient = uFirstLightingPass ? vColor * 0.14 : vec3(0.0);
-        vec3 direct = vColor * uLightColor * diffuse * shadow * 0.86 * uInvLightCount;
-        lit = ambient + direct;
+
+        vec3 ambient = uFirstLightingPass ? ka * 0.14 : vec3(0.0);
+        vec3 diffuse = kd * uLightColor * diffuseFactor;
+        vec3 specular = ks * uLightColor * specularFactor;
+        lit = ambient + (diffuse + specular) * shadow * 0.86 * uInvLightCount;
     }
 
     oColor = vec4(lit, 1.0);
@@ -242,6 +255,11 @@ void bindLightUniforms(const ShaderProgram& shader,
     shader.setBool("uFirstLightingPass", firstLightingPass);
 }
 
+Vec3 cornellCameraPosition()
+{
+    return Vec3(278.0f, 273.0f, -800.0f);
+}
+
 void configureLightingPass(size_t lightIndex)
 {
     if (lightIndex == 0) {
@@ -265,7 +283,7 @@ void configureLightingPass(size_t lightIndex)
 Mat4 cornellView()
 {
     return lookAt(
-        Vec3(278.0f, 273.0f, -800.0f),
+        cornellCameraPosition(),
         Vec3(278.0f, 273.0f, 279.6f),
         Vec3(0.0f, 1.0f, 0.0f));
 }
@@ -305,6 +323,9 @@ void Renderer::render(const AppConfig& config)
         shader.use();
         shader.setMat4("uView", cornellView());
         shader.setMat4("uProjection", cornellProjection(config));
+        shader.setVec3("uCameraPosition", cornellCameraPosition());
+        shader.setFloat("uShininess", 32.0f);
+        shader.setFloat("uSpecularStrength", 0.0f);
 
         for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
             configureLightingPass(lightIndex);

@@ -70,3 +70,8 @@ The default camera matches the HW7 Cornell Box convention: eye
 The base render already includes shadow mapping. The Cornell Box area light is
 approximated by many point lights, which gives soft-shadow behavior while still
 keeping the pipeline easy to extend with a later SSAO pass.
+
+The lighting code is organized as a Blinn-Phong model with `ka`, `kd`, `ks`,
+`ambient`, `diffuse`, and `specular` terms. Cornell Box surfaces are configured
+as diffuse by setting specular strength to zero, matching the usual Lambertian
+Cornell Box material assumption.
