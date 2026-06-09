@@ -48,8 +48,6 @@ void main() {
 const char* kFragmentShader = R"GLSL(
 #version 330 core
 
-#define MAX_AREA_LIGHTS 16
-
 layout(location = 0) out vec4 oColor;
 layout(location = 1) out vec4 oNormal;
 
@@ -57,41 +55,40 @@ in vec3 vWorldPosition;
 in vec3 vNormal;
 in vec3 vColor;
 
-uniform int uLightCount;
-uniform vec3 uLightPositions[MAX_AREA_LIGHTS];
-uniform vec3 uLightColors[MAX_AREA_LIGHTS];
-uniform samplerCube uShadowMaps[MAX_AREA_LIGHTS];
+uniform vec3 uLightPosition;
+uniform vec3 uLightColor;
+uniform samplerCube uShadowMap;
 uniform float uFarPlane;
+uniform float uInvLightCount;
 uniform bool uEmissive;
+uniform bool uFirstLightingPass;
 
-float pointShadow(int lightIndex, vec3 normal) {
-    vec3 lightToFragment = vWorldPosition - uLightPositions[lightIndex];
+float pointShadow(vec3 normal) {
+    vec3 lightToFragment = vWorldPosition - uLightPosition;
     float currentDepth = length(lightToFragment) / uFarPlane;
     if (currentDepth >= 1.0) {
         return 1.0;
     }
 
-    vec3 lightDir = normalize(uLightPositions[lightIndex] - vWorldPosition);
+    vec3 lightDir = normalize(uLightPosition - vWorldPosition);
     float bias = max(0.006 * (1.0 - abs(dot(normal, lightDir))), 0.0015);
-    float closestDepth = texture(uShadowMaps[lightIndex], lightToFragment).r;
+    float closestDepth = texture(uShadowMap, lightToFragment).r;
     return currentDepth - bias > closestDepth ? 0.0 : 1.0;
 }
 
 void main() {
     vec3 n = normalize(vNormal);
-    vec3 direct = vec3(0.0);
-
-    for (int i = 0; i < uLightCount; ++i) {
-        vec3 l = normalize(uLightPositions[i] - vWorldPosition);
-        float diffuse = max(abs(dot(n, l)), 0.0);
-        direct += uLightColors[i] * diffuse * pointShadow(i, n);
-    }
-
-    direct /= max(float(uLightCount), 1.0);
-    vec3 lit = vColor * (0.14 + 0.86 * direct);
+    vec3 lit = vec3(0.0);
 
     if (uEmissive) {
-        lit = vec3(1.0, 0.94, 0.78);
+        lit = uFirstLightingPass ? vec3(1.0, 0.94, 0.78) : vec3(0.0);
+    } else {
+        vec3 l = normalize(uLightPosition - vWorldPosition);
+        float diffuse = max(abs(dot(n, l)), 0.0);
+        float shadow = pointShadow(n);
+        vec3 ambient = uFirstLightingPass ? vColor * 0.14 : vec3(0.0);
+        vec3 direct = vColor * uLightColor * diffuse * shadow * 0.86 * uInvLightCount;
+        lit = ambient + direct;
     }
 
     oColor = vec4(lit, 1.0);
@@ -229,21 +226,40 @@ std::vector<ShadowCubeMap> renderShadowMaps(const AppConfig& config,
     return shadowMaps;
 }
 
-void bindAreaLightUniforms(const ShaderProgram& shader,
-    const std::vector<PointLight>& lights,
-    const std::vector<ShadowCubeMap>& shadowMaps,
-    float farPlane)
+void bindLightUniforms(const ShaderProgram& shader,
+    const PointLight& light,
+    const ShadowCubeMap& shadowMap,
+    size_t lightCount,
+    float farPlane,
+    bool firstLightingPass)
 {
-    shader.setInt("uLightCount", static_cast<int>(lights.size()));
+    shadowMap.bind(GL_TEXTURE0);
+    shader.setInt("uShadowMap", 0);
+    shader.setVec3("uLightPosition", light.position);
+    shader.setVec3("uLightColor", light.color);
     shader.setFloat("uFarPlane", farPlane);
+    shader.setFloat("uInvLightCount", 1.0f / static_cast<float>(lightCount));
+    shader.setBool("uFirstLightingPass", firstLightingPass);
+}
 
-    for (size_t i = 0; i < lights.size(); ++i) {
-        const std::string index = std::to_string(i);
-        shadowMaps[i].bind(GL_TEXTURE0 + static_cast<GLenum>(i));
-        shader.setInt(("uShadowMaps[" + index + "]").c_str(), static_cast<int>(i));
-        shader.setVec3(("uLightPositions[" + index + "]").c_str(), lights[i].position);
-        shader.setVec3(("uLightColors[" + index + "]").c_str(), lights[i].color);
+void configureLightingPass(size_t lightIndex)
+{
+    if (lightIndex == 0) {
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS);
+        glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glColorMaski(1, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        return;
     }
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LEQUAL);
+    glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glColorMaski(1, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 }
 
 Mat4 cornellView()
@@ -268,17 +284,12 @@ Mat4 cornellProjection(const AppConfig& config)
 void Renderer::render(const AppConfig& config)
 {
     OpenGlContext context;
-    GLint maxTextureUnits = 0;
-    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
 
     {
         ShaderProgram shader(kVertexShader, kFragmentShader);
         ShaderProgram shadowShader(kShadowVertexShader, kShadowFragmentShader);
         std::vector<GpuMesh> meshes = uploadSceneMeshes(config);
         std::vector<PointLight> lights = sampleCornellAreaLight(config.areaLightSamplesPerSide);
-        if (static_cast<int>(lights.size()) > maxTextureUnits) {
-            throw std::runtime_error("not enough fragment texture units for all point-light shadow maps");
-        }
 
         constexpr float shadowFarPlane = 1200.0f;
         std::vector<ShadowCubeMap> shadowMaps = renderShadowMaps(config, meshes, lights, shadowShader, shadowFarPlane);
@@ -290,18 +301,26 @@ void Renderer::render(const AppConfig& config)
         glEnable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
         glClearColor(0.02f, 0.025f, 0.03f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         shader.use();
         shader.setMat4("uView", cornellView());
         shader.setMat4("uProjection", cornellProjection(config));
-        bindAreaLightUniforms(shader, lights, shadowMaps, shadowFarPlane);
 
-        for (const GpuMesh& mesh : meshes) {
-            shader.setBool("uEmissive", mesh.emissive());
-            mesh.draw();
+        for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
+            configureLightingPass(lightIndex);
+            bindLightUniforms(shader, lights[lightIndex], shadowMaps[lightIndex], lights.size(), shadowFarPlane, lightIndex == 0);
+
+            for (const GpuMesh& mesh : meshes) {
+                shader.setBool("uEmissive", mesh.emissive());
+                mesh.draw();
+            }
         }
         glBindVertexArray(0);
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS);
+        glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glColorMaski(1, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         checkGl("render");
 
         framebuffer.writeColor(config.colorOutput);

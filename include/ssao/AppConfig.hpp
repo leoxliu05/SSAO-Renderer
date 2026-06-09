@@ -5,7 +5,7 @@
 struct AppConfig {
     int width = 1024;
     int height = 1024;
-    int areaLightSamplesPerSide = 4;
+    int areaLightSamplesPerSide = 8;
     int shadowMapSize = 512;
     std::filesystem::path modelDir = "models/cornellbox";
     std::filesystem::path colorOutput = "render.ppm";

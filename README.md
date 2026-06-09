@@ -46,14 +46,17 @@ Useful runtime options:
 
 ```sh
 ./build/SSAO_Renderer \
-  --area-light-samples 4 \
+  --area-light-samples 8 \
   --shadow-map-size 512 \
   --output build/render.ppm
 ```
 
 `--area-light-samples N` samples the Cornell Box rectangle light into `N x N`
-point lights. The current shader supports up to 16 point-light shadow maps, so
-`N` is limited to 4. Each point light gets its own depth cubemap shadow map.
+point lights. The default is `8`, so the area light is approximated with 64
+point-light shadow maps. `N` is capped at 16 to avoid accidental excessive
+shadow memory use. Each point light gets its own depth cubemap shadow map, and
+the renderer accumulates lighting in multiple additive passes so it is not
+limited by the number of simultaneously bound fragment textures.
 
 ## Outputs
 

@@ -63,8 +63,8 @@ AppConfig parseAppConfig(int argc, char** argv)
     if (config.areaLightSamplesPerSide <= 0) {
         throw std::runtime_error("area light samples must be positive");
     }
-    if (config.areaLightSamplesPerSide * config.areaLightSamplesPerSide > 16) {
-        throw std::runtime_error("area light samples are limited to 4 per side for the current shader");
+    if (config.areaLightSamplesPerSide > 16) {
+        throw std::runtime_error("area light samples are limited to 16 per side to keep shadow memory bounded");
     }
     if (config.shadowMapSize <= 0) {
         throw std::runtime_error("shadow map size must be positive");
