@@ -20,7 +20,7 @@ int parseObjIndex(const std::string& token)
 
 } // namespace
 
-std::vector<Vertex> loadObjMesh(const std::filesystem::path& path, const Vec3& color)
+std::vector<Vertex> loadObjMesh(const std::filesystem::path& path, const Vec3& color, const Vec3& positionOffset)
 {
     std::ifstream in(path);
     if (!in) {
@@ -39,6 +39,7 @@ std::vector<Vertex> loadObjMesh(const std::filesystem::path& path, const Vec3& c
         if (tag == "v") {
             Vec3 p{};
             iss >> p.x >> p.y >> p.z;
+            p = p + positionOffset;
             positions.push_back(p);
         } else if (tag == "f") {
             std::vector<int> indices;

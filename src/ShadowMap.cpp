@@ -103,6 +103,9 @@ void ShadowCubeMap::render(const std::vector<GpuMesh>& meshes,
         shader.setMat4("uLightViewProjection", projection * views[face]);
 
         for (const GpuMesh& mesh : meshes) {
+            if (mesh.emissive()) {
+                continue;
+            }
             mesh.draw();
         }
     }

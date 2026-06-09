@@ -24,7 +24,7 @@ std::vector<PointLight> sampleCornellAreaLight(int samplesPerSide)
                 y,
                 minZ + (maxZ - minZ) * v);
 
-            lights.push_back(PointLight{position, Vec3(1.0f, 0.94f, 0.78f)});
+            lights.push_back(PointLight{position, Vec3(1.0f)});
         }
     }
 

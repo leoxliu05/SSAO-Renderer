@@ -9,6 +9,7 @@
 struct SceneObject {
     std::filesystem::path objPath;
     Vec3 color{};
+    Vec3 positionOffset{};
     bool emissive = false;
 };
 

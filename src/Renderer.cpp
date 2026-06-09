@@ -204,7 +204,7 @@ std::vector<GpuMesh> uploadSceneMeshes(const AppConfig& config)
 {
     std::vector<GpuMesh> meshes;
     for (const SceneObject& object : loadCornellBoxScene(config.modelDir)) {
-        std::vector<Vertex> vertices = loadObjMesh(object.objPath, object.color);
+        std::vector<Vertex> vertices = loadObjMesh(object.objPath, object.color, object.positionOffset);
         meshes.emplace_back(object.objPath.filename().string(), vertices, object.emissive);
     }
     return meshes;
