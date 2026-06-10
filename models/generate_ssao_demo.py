@@ -57,15 +57,21 @@ def sphere_verts_faces(r, slices=24, stacks=12):
 
 def floor_verts_faces(w, d):
     verts = [(0,0,0),(w,0,0),(w,0,d),(0,0,d)]
-    return verts, [(1,2,3),(1,3,4)]
+    return verts, [(1,4,3),(1,3,2)]  # normal +Y (up)
 
 def wall_xy(w, h):
     verts = [(0,0,0),(w,0,0),(w,h,0),(0,h,0)]
-    return verts, [(1,2,3),(1,3,4)]
+    return verts, [(1,4,3),(1,3,2)]  # normal -Z (into room)
 
-def wall_yz(x, h, d):
+def wall_yz_left(h, d):
+    """Left wall at x=0, faces +X into room."""
+    verts = [(0,0,0),(0,0,d),(0,h,d),(0,h,0)]
+    return verts, [(1,4,3),(1,3,2)]  # normal +X
+
+def wall_yz_right(x, h, d):
+    """Right wall at x, faces -X into room."""
     verts = [(x,0,0),(x,0,d),(x,h,d),(x,h,0)]
-    return verts, [(1,2,3),(1,3,4)]
+    return verts, [(1,2,3),(1,3,4)]  # normal -X
 
 def ceiling_quad(w, d, y):
     verts = [(0,y,0),(w,y,0),(w,y,d),(0,y,d)]
@@ -75,8 +81,8 @@ def ceiling_quad(w, d, y):
 print("Generating meshes...")
 write_obj(f"{OUT}/floor.obj",      *floor_verts_faces(600, 600))
 write_obj(f"{OUT}/wall_back.obj",  *wall_xy(600, 400))
-write_obj(f"{OUT}/wall_left.obj",  *wall_yz(0, 400, 600))
-write_obj(f"{OUT}/wall_right.obj", *wall_yz(600, 400, 600))
+write_obj(f"{OUT}/wall_left.obj",  *wall_yz_left(400, 600))
+write_obj(f"{OUT}/wall_right.obj", *wall_yz_right(600, 400, 600))
 write_obj(f"{OUT}/ceiling.obj",    *ceiling_quad(600, 600, 400))
 write_obj(f"{OUT}/box_80.obj",     *cube_verts_faces(40, 40, 40))
 write_obj(f"{OUT}/box_30.obj",     *cube_verts_faces(15, 15, 15))
