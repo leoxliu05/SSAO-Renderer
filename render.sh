@@ -6,8 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
 
 # Render settings.
-WIDTH=2048
-HEIGHT=1024
+WIDTH=2560
+HEIGHT=1440
 MODEL_DIR="$ROOT_DIR/models/ssao-demo"
 
 # Derive output folder name from model directory.
