@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ssao/AppConfig.hpp"
+#include "AppConfig.hpp"
 
 class Renderer {
 public:

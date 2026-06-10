@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ssao/GpuMesh.hpp"
-#include "ssao/Math.hpp"
-#include "ssao/ShaderProgram.hpp"
+#include "GpuMesh.hpp"
+#include "Math.hpp"
+#include "ShaderProgram.hpp"
 
 #include <GL/glew.h>
 #include <vector>

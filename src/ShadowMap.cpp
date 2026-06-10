@@ -1,4 +1,4 @@
-#include "ssao/ShadowMap.hpp"
+#include "ShadowMap.hpp"
 
 #include <stdexcept>
 #include <utility>

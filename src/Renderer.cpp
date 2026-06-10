@@ -1,13 +1,13 @@
-#include "ssao/Renderer.hpp"
+#include "Renderer.hpp"
 
-#include "ssao/AreaLight.hpp"
-#include "ssao/CornellBoxScene.hpp"
-#include "ssao/Framebuffer.hpp"
-#include "ssao/GpuMesh.hpp"
-#include "ssao/Math.hpp"
-#include "ssao/ObjLoader.hpp"
-#include "ssao/ShadowMap.hpp"
-#include "ssao/ShaderProgram.hpp"
+#include "AreaLight.hpp"
+#include "CornellBoxScene.hpp"
+#include "Framebuffer.hpp"
+#include "GpuMesh.hpp"
+#include "Math.hpp"
+#include "ObjLoader.hpp"
+#include "ShadowMap.hpp"
+#include "ShaderProgram.hpp"
 
 #include <GL/glew.h>
 #ifdef __APPLE__

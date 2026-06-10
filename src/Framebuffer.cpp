@@ -1,4 +1,4 @@
-#include "ssao/Framebuffer.hpp"
+#include "Framebuffer.hpp"
 
 #include <algorithm>
 #include <fstream>

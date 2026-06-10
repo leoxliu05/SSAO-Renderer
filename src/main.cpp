@@ -1,5 +1,5 @@
-#include "ssao/AppConfig.hpp"
-#include "ssao/Renderer.hpp"
+#include "AppConfig.hpp"
+#include "Renderer.hpp"
 
 #include <exception>
 #include <iostream>

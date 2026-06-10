@@ -1,4 +1,4 @@
-#include "ssao/ObjLoader.hpp"
+#include "ObjLoader.hpp"
 
 #include <cmath>
 #include <fstream>

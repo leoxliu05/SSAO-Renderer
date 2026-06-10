@@ -1,4 +1,4 @@
-#include "ssao/GpuMesh.hpp"
+#include "GpuMesh.hpp"
 
 #include <cstddef>
 #include <utility>

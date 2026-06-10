@@ -100,7 +100,7 @@ changes are grouped, but all project modules and important GPU calls are shown.
 ```text
 main(argc, argv)                                    src/main.cpp
 |-- parseAppConfig(argc, argv)                      src/AppConfig.cpp
-|   |-- parse, apply and validate values            include/ssao/AppConfig.hpp
+|   |-- parse, apply and validate values            include/AppConfig.hpp
 |   |   |-- width/height = 1024
 |   |   |-- areaLightSamplesPerSide = 8
 |   |   |-- shadowMapSize = 512
@@ -177,7 +177,7 @@ main(argc, argv)                                    src/main.cpp
 |   |   |-- for row in samplesPerSide
 |   |   |   |-- for col in samplesPerSide
 |   |   |       |-- sample cell center
-|   |   |       |-- push PointLight{position, white color}                include/ssao/AreaLight.hpp
+|   |   |       |-- push PointLight{position, white color}                include/AreaLight.hpp
 |   |   |-- return vector<PointLight>
 |   |
 |   |-- shadowFarPlane = 1200.0
@@ -196,8 +196,8 @@ main(argc, argv)                                    src/main.cpp
 |   |   |   |   |-- glReadBuffer(GL_NONE)
 |   |   |   |   |-- glCheckFramebufferStatus
 |   |   |   |-- ShadowMap::render(meshes, shadowShader, light.position, shadowFarPlane)
-|   |   |       |-- projection = perspective(90 deg, aspect 1, near 1, farPlane)   include/ssao/Math.hpp
-|   |   |       |-- view = lookAt(lightPosition, Cornell Box center, up)          include/ssao/Math.hpp
+|   |   |       |-- projection = perspective(90 deg, aspect 1, near 1, farPlane)   include/Math.hpp
+|   |   |       |-- view = lookAt(lightPosition, Cornell Box center, up)          include/Math.hpp
 |   |   |       |-- store lightViewProjection = projection * view
 |   |   |       |-- glViewport(0, 0, shadowMapSize, shadowMapSize)
 |   |   |       |-- glBindFramebuffer(shadow FBO)
@@ -246,9 +246,9 @@ main(argc, argv)                                    src/main.cpp
 |   |   |-- shader.setMat4("uView", cornellView())
 |   |   |   |-- cornellView()
 |   |   |       |-- cornellCameraPosition()
-|   |   |       |-- lookAt(eye, center, up)                              include/ssao/Math.hpp
+|   |   |       |-- lookAt(eye, center, up)                              include/Math.hpp
 |   |   |-- shader.setMat4("uProjection", cornellProjection(config))
-|   |   |   |-- perspective(fov, aspect, near, far)                    include/ssao/Math.hpp
+|   |   |   |-- perspective(fov, aspect, near, far)                    include/Math.hpp
 |   |   |-- shader.setVec3("uCameraPosition", cornellCameraPosition())
 |   |   |-- shader.setFloat("uAmbientStrength", config.ambientStrength)
 |   |   |-- shader.setFloat("uLightIntensity", config.lightIntensity)
@@ -357,21 +357,21 @@ main(argc, argv)                                    src/main.cpp
 Notes on the shared data structures:
 
 ```text
-Vertex                                  include/ssao/Vertex.hpp
+Vertex                                  include/Vertex.hpp
 |-- Vec3 position
 |-- Vec3 normal
 |-- Vec3 color
 
-SceneObject                             include/ssao/CornellBoxScene.hpp
+SceneObject                             include/CornellBoxScene.hpp
 |-- objPath
 |-- color
 |-- positionOffset
 |-- emissive
 
-PointLight                              include/ssao/AreaLight.hpp
+PointLight                              include/AreaLight.hpp
 |-- position
 |-- color
 
-Vec3 / Mat4 and inline math             include/ssao/Math.hpp
+Vec3 / Mat4 and inline math             include/Math.hpp
 |-- used by OBJ loading, camera setup, light sampling, and shadow matrices
 ```

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ssao/Vertex.hpp"
+#include "Vertex.hpp"
 
 #include <GL/glew.h>
 #include <string>

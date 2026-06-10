@@ -1,4 +1,4 @@
-#include "ssao/AppConfig.hpp"
+#include "AppConfig.hpp"
 
 #include <cstdlib>
 #include <iostream>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ssao/Math.hpp"
+#include "Math.hpp"
 
 #include <filesystem>
 #include <string>

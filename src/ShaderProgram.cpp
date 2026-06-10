@@ -1,4 +1,4 @@
-#include "ssao/ShaderProgram.hpp"
+#include "ShaderProgram.hpp"
 
 #include <stdexcept>
 #include <string>

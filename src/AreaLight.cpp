@@ -1,4 +1,4 @@
-#include "ssao/AreaLight.hpp"
+#include "AreaLight.hpp"
 
 #include <algorithm>
 

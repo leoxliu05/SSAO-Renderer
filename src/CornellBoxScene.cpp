@@ -1,4 +1,4 @@
-#include "ssao/CornellBoxScene.hpp"
+#include "CornellBoxScene.hpp"
 
 std::vector<SceneObject> loadCornellBoxScene(const std::filesystem::path& modelDir)
 {
