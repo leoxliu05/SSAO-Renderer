@@ -13,15 +13,22 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(SSAO_Renderer
     src/AmbientOcclusionBuffer.cpp
+    src/AmbientOcclusionPass.cpp
     src/AreaLight.cpp
     src/AppConfig.cpp
     src/FullscreenTriangle.cpp
     src/GeometryBuffer.cpp
+    src/GeometryPass.cpp
     src/GpuMesh.cpp
     src/LightingBuffer.cpp
+    src/LightingPass.cpp
     src/ObjLoader.cpp
+    src/OpenGlContext.cpp
+    src/RenderOutputWriter.cpp
     src/Renderer.cpp
+    src/RenderScene.cpp
     src/SceneLoader.cpp
+    src/ShadowPass.cpp
     src/ShadowMap.cpp
     src/ShaderProgram.cpp
     src/main.cpp

@@ -1,50 +1,8 @@
 #pragma once
 
-namespace ShaderSources {
+namespace LightingShaders {
 
-inline constexpr const char* geometryVertex = R"GLSL(
-#version 330 core
-
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-
-uniform mat4 uView;
-uniform mat4 uProjection;
-
-out vec3 vWorldPosition;
-out vec3 vWorldNormal;
-out vec3 vAlbedo;
-
-void main() {
-    vWorldPosition = aPosition;
-    vWorldNormal = normalize(aNormal);
-    vAlbedo = aColor;
-    gl_Position = uProjection * uView * vec4(aPosition, 1.0);
-}
-)GLSL";
-
-inline constexpr const char* geometryFragment = R"GLSL(
-#version 330 core
-
-layout(location = 0) out vec3 oWorldPosition;
-layout(location = 1) out vec3 oWorldNormal;
-layout(location = 2) out vec4 oMaterial;
-
-in vec3 vWorldPosition;
-in vec3 vWorldNormal;
-in vec3 vAlbedo;
-
-uniform bool uEmissive;
-
-void main() {
-    oWorldPosition = vWorldPosition;
-    oWorldNormal = normalize(vWorldNormal);
-    oMaterial = vec4(vAlbedo, uEmissive ? 1.0 : 0.0);
-}
-)GLSL";
-
-inline constexpr const char* fullscreenVertex = R"GLSL(
+inline constexpr const char* vertex = R"GLSL(
 #version 330 core
 
 out vec2 vUv;
@@ -61,7 +19,7 @@ void main() {
 }
 )GLSL";
 
-inline constexpr const char* lightingFragment = R"GLSL(
+inline constexpr const char* fragment = R"GLSL(
 #version 330 core
 
 layout(location = 0) out vec4 oColor;
@@ -148,23 +106,4 @@ void main() {
 }
 )GLSL";
 
-inline constexpr const char* shadowVertex = R"GLSL(
-#version 330 core
-
-layout(location = 0) in vec3 aPosition;
-
-uniform mat4 uLightViewProjection;
-
-void main() {
-    gl_Position = uLightViewProjection * vec4(aPosition, 1.0);
-}
-)GLSL";
-
-inline constexpr const char* shadowFragment = R"GLSL(
-#version 330 core
-
-void main() {
-}
-)GLSL";
-
-} // namespace ShaderSources
+} // namespace LightingShaders
