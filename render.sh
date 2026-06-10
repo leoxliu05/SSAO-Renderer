@@ -14,6 +14,10 @@ AMBIENT_STRENGTH=0.14
 LIGHT_INTENSITY=1.00
 MODEL_DIR="$ROOT_DIR/models/cornellbox"
 
+# Derive output folder name from model directory.
+MODEL_NAME="$(basename "$MODEL_DIR")"
+OUT_DIR="$BUILD_DIR/$MODEL_NAME"
+
 cmake -S "$ROOT_DIR" -B "$BUILD_DIR"
 cmake --build "$BUILD_DIR" --parallel
 
@@ -25,10 +29,6 @@ cmake --build "$BUILD_DIR" --parallel
     --ambient-strength "$AMBIENT_STRENGTH" \
     --light-intensity "$LIGHT_INTENSITY" \
     --model-dir "$MODEL_DIR" \
-    --output "$BUILD_DIR/render.ppm" \
-    --normal-output "$BUILD_DIR/normal_debug.ppm" \
-    --depth-output "$BUILD_DIR/depth_debug.ppm" \
-    --ao-output "$BUILD_DIR/ambient_occlusion_debug.ppm" \
     "$@"
 
 if ! command -v sips >/dev/null 2>&1; then
@@ -36,7 +36,7 @@ if ! command -v sips >/dev/null 2>&1; then
     exit 1
 fi
 
-sips -s format png "$BUILD_DIR/render.ppm" \
-    --out "$BUILD_DIR/render.png" >/dev/null
+sips -s format png "$OUT_DIR/render.ppm" \
+    --out "$OUT_DIR/render.png" >/dev/null
 
 printf 'Wrote %s\n' "$BUILD_DIR/render.png"

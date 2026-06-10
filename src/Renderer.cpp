@@ -1,5 +1,7 @@
 #include "Renderer.hpp"
 
+#include <filesystem>
+
 #include "AOBuffer.hpp"
 #include "AOPass.hpp"
 #include "GeometryBuffer.hpp"
@@ -11,8 +13,16 @@
 #include "Scene.hpp"
 #include "ShadowPass.hpp"
 
-void Renderer::render(const AppConfig& config)
+void Renderer::render(AppConfig config)
 {
+    // Place outputs under build/<model_name>/ so each scene stays isolated.
+    auto outDir = std::filesystem::path("build") / config.modelDir.filename();
+    std::filesystem::create_directories(outDir);
+    config.colorOutput  = outDir / config.colorOutput.filename();
+    config.normalOutput = outDir / config.normalOutput.filename();
+    config.depthOutput  = outDir / config.depthOutput.filename();
+    config.aoOutput     = outDir / config.aoOutput.filename();
+
     OpenGLHelpers::Context context;
     Scene scene(config);
 

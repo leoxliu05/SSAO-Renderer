@@ -4,5 +4,5 @@
 
 class Renderer {
 public:
-    void render(const AppConfig& config);
+    void render(AppConfig config);
 };
