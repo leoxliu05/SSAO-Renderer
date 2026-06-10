@@ -58,6 +58,8 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.depthOutput = requireValue("--depth-output");
         } else if (arg == "--ssao-output") {
             config.ssaoOutput = requireValue("--ssao-output");
+        } else if (arg == "--no-ssao") {
+            config.enableSSAO = false;
         } else if (arg == "--help" || arg == "-h") {
             printUsage();
             std::exit(0);

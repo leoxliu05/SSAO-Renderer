@@ -9,6 +9,7 @@ BUILD_DIR="$ROOT_DIR/build"
 WIDTH=2560
 HEIGHT=1440
 MODEL_DIR="$ROOT_DIR/models/ssao-demo"
+ENABLE_SSAO=0   # set to 0 to disable SSAO
 
 # Derive output folder name from model directory.
 MODEL_NAME="$(basename "$MODEL_DIR")"
@@ -18,10 +19,16 @@ PNG_OUTPUT="$OUT_DIR/render.png"
 cmake -S "$ROOT_DIR" -B "$BUILD_DIR"
 cmake --build "$BUILD_DIR" --parallel
 
+SSAO_FLAG=""
+if [ "$ENABLE_SSAO" -eq 0 ]; then
+    SSAO_FLAG="--no-ssao"
+fi
+
 "$BUILD_DIR/SSAO_Renderer" \
     --width "$WIDTH" \
     --height "$HEIGHT" \
     --model-dir "$MODEL_DIR" \
+    $SSAO_FLAG \
     "$@"
 
 if ! command -v sips >/dev/null 2>&1; then

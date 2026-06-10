@@ -14,6 +14,8 @@ struct AppConfig {
     std::filesystem::path normalOutput = "normal_debug.ppm";
     std::filesystem::path depthOutput = "depth_debug.ppm";
     std::filesystem::path ssaoOutput = "ssao_debug.ppm";
+
+    bool enableSSAO = true;
 };
 
 AppConfig parseAppConfig(int argc, char** argv);

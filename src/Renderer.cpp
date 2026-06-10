@@ -50,8 +50,13 @@ void Renderer::render(AppConfig config)
     Mat4 proj = perspective(radians(scene.camera.fovYDegrees),
         static_cast<float>(config.width) / static_cast<float>(config.height),
         scene.camera.nearPlane, scene.camera.farPlane);
-    ssaoPass.render(ssaoBuffer, geometryBuffer, view, proj,
-                     config.width, config.height);
+
+    if (config.enableSSAO) {
+        ssaoPass.render(ssaoBuffer, geometryBuffer, view, proj,
+                        config.width, config.height);
+    } else {
+        ssaoBuffer.clearNeutral();
+    }
     lightingPass.render(config,
         scene,
         shadowMaps,
