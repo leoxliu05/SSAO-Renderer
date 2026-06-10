@@ -15,7 +15,6 @@ add_executable(SSAO_Renderer
     src/AmbientOcclusionBuffer.cpp
     src/AreaLight.cpp
     src/AppConfig.cpp
-    src/FramebufferSupport.cpp
     src/FullscreenTriangle.cpp
     src/GeometryBuffer.cpp
     src/GpuMesh.cpp

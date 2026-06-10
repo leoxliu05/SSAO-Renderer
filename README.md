@@ -10,14 +10,14 @@ The complete execution tree follows the current code path. OpenGL state calls
 are shown under the project function that issues them.
 
 ```cpp
-main(argc, argv)                                                  src/main.cpp
-|-- parseAppConfig(argc, argv)                                    src/AppConfig.cpp
+main(argc, argv) -> int                                           src/main.cpp
+|-- parseAppConfig(argc, argv) -> AppConfig                       src/AppConfig.cpp
 |   |-- parse command-line arguments into AppConfig
 |   `-- validate dimensions, light samples, shadow size, and lighting values
 |
-`-- Renderer::render(config)                                      src/Renderer.cpp
+`-- Renderer::render(config) -> void                              src/Renderer.cpp
     |
-    |-- OpenGlContext::OpenGlContext()
+    |-- OpenGlContext::OpenGlContext() -> initialized OpenGlContext
     |   |-- CGLChoosePixelFormat(...)
     |   |-- CGLCreateContext(...)
     |   |-- CGLDestroyPixelFormat(...)
@@ -25,7 +25,7 @@ main(argc, argv)                                                  src/main.cpp
     |   |-- glewInit()
     |   `-- glGetError()  // clear the benign GLEW core-profile error
     |
-    |-- loadScene(config.modelDir)                                src/SceneLoader.cpp
+    |-- loadScene(config.modelDir) -> Scene                       src/SceneLoader.cpp
     |   |-- open <modelDir>/scene.json
     |   |-- parse JSON
     |   |-- read scene objects and resolve OBJ paths
@@ -34,10 +34,12 @@ main(argc, argv)                                                  src/main.cpp
     |   |-- read shadow-camera settings
     |   `-- validate scene values
     |
-    |-- uploadSceneMeshes(scene)                                  src/Renderer.cpp
+    |-- uploadSceneMeshes(scene) -> std::vector<GpuMesh>          src/Renderer.cpp
     |   `-- for each SceneObject
-    |       |-- loadObjMesh(objPath, color, positionOffset)        src/ObjLoader.cpp
-    |       `-- GpuMesh::GpuMesh(name, vertices, emissive)         src/GpuMesh.cpp
+    |       |-- loadObjMesh(objPath, color, positionOffset) -> std::vector<Vertex>
+    |       |                                                       src/ObjLoader.cpp
+    |       `-- GpuMesh::GpuMesh(name, vertices, emissive) -> GpuMesh
+    |                                                               src/GpuMesh.cpp
     |           |-- glGenVertexArrays(...)
     |           |-- glGenBuffers(...)
     |           |-- glBindVertexArray(...)
@@ -51,29 +53,33 @@ main(argc, argv)                                                  src/main.cpp
     |           |-- glVertexAttribPointer(2, ...)
     |           `-- glBindVertexArray(0)
     |
-    |-- sampleAreaLight(areaLight, samplesPerSide)                 src/AreaLight.cpp
+    |-- sampleAreaLight(areaLight, samplesPerSide) -> std::vector<PointLight>
+    |                                                               src/AreaLight.cpp
     |   `-- generate samplesPerSide x samplesPerSide PointLights
     |
-    |-- ShaderProgram::ShaderProgram(                              src/ShaderProgram.cpp
-    |       geometryVertex, geometryFragment)
-    |   |-- compileShader(GL_VERTEX_SHADER, geometryVertex)
-    |   |-- compileShader(GL_FRAGMENT_SHADER, geometryFragment)
+    |-- ShaderProgram::ShaderProgram(
+    |       geometryVertex, geometryFragment) -> ShaderProgram    src/ShaderProgram.cpp
+    |   |-- compileShader(GL_VERTEX_SHADER, geometryVertex) -> GLuint
+    |   |-- compileShader(GL_FRAGMENT_SHADER, geometryFragment) -> GLuint
     |   `-- link the geometry program
     |
     |-- ShaderProgram::ShaderProgram(
-    |       fullscreenVertex, lightingFragment)
-    |   |-- compileShader(GL_VERTEX_SHADER, fullscreenVertex)
-    |   |-- compileShader(GL_FRAGMENT_SHADER, lightingFragment)
+    |       fullscreenVertex, lightingFragment) -> ShaderProgram  src/ShaderProgram.cpp
+    |   |-- compileShader(GL_VERTEX_SHADER, fullscreenVertex) -> GLuint
+    |   |-- compileShader(GL_FRAGMENT_SHADER, lightingFragment) -> GLuint
     |   `-- link the fullscreen lighting program
     |
-    |-- ShaderProgram::ShaderProgram(shadowVertex, shadowFragment)
-    |   |-- compileShader(GL_VERTEX_SHADER, shadowVertex)
-    |   |-- compileShader(GL_FRAGMENT_SHADER, shadowFragment)
+    |-- ShaderProgram::ShaderProgram(shadowVertex, shadowFragment) -> ShaderProgram
+    |                                                               src/ShaderProgram.cpp
+    |   |-- compileShader(GL_VERTEX_SHADER, shadowVertex) -> GLuint
+    |   |-- compileShader(GL_FRAGMENT_SHADER, shadowFragment) -> GLuint
     |   `-- link the shadow program
     |
-    |-- renderShadowMaps(config, meshes, lights, shadowShader, settings)
+    |-- renderShadowMaps(config, meshes, lights, shadowShader, settings) -> std::vector<ShadowMap>
+    |                                                               src/Renderer.cpp
     |   `-- for each PointLight
-    |       |-- ShadowMap::ShadowMap(config.shadowMapSize)          src/ShadowMap.cpp
+    |       |-- ShadowMap::ShadowMap(config.shadowMapSize) -> ShadowMap
+    |       |                                                       src/ShadowMap.cpp
     |       |   |-- glGenFramebuffers(...)
     |       |   |-- glGenTextures(...)
     |       |   |-- glBindTexture(GL_TEXTURE_2D, depthTexture)
@@ -85,10 +91,11 @@ main(argc, argv)                                                  src/main.cpp
     |       |   |-- glReadBuffer(GL_NONE)
     |       |   `-- glCheckFramebufferStatus(GL_FRAMEBUFFER)
     |       |
-    |       `-- ShadowMap::render(meshes, shader, lightPosition, settings)
-    |           |-- makeLightViewProjection(lightPosition, settings)
-    |           |   |-- perspective(...)
-    |           |   |-- lookAt(...)
+    |       `-- ShadowMap::render(meshes, shader, lightPosition, settings) -> void
+    |               // writes the light-space depth texture
+    |           |-- makeLightViewProjection(lightPosition, settings) -> Mat4
+    |           |   |-- perspective(...) -> Mat4
+    |           |   |-- lookAt(...) -> Mat4
     |           |   `-- projection * view
     |           |-- glViewport(0, 0, shadowMapSize, shadowMapSize)
     |           |-- glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo)
@@ -97,53 +104,62 @@ main(argc, argv)                                                  src/main.cpp
     |           |-- glEnable(GL_DEPTH_TEST)
     |           |-- glDisable(GL_CULL_FACE)
     |           |-- glClear(GL_DEPTH_BUFFER_BIT)
-    |           |-- ShaderProgram::use()
+    |           |-- ShaderProgram::use() -> void; binds shadowProgram
     |           |   `-- glUseProgram(shadowProgram)
     |           |-- ShaderProgram::setMat4("uLightViewProjection", ...)
     |           `-- for each non-emissive GpuMesh
-    |               `-- GpuMesh::draw()
+    |               `-- GpuMesh::draw() -> void; submits mesh triangles
     |                   |-- glBindVertexArray(meshVao)
     |                   `-- glDrawArrays(GL_TRIANGLES, 0, vertexCount)
     |
-    |-- GeometryBuffer::GeometryBuffer(width, height)              src/GeometryBuffer.cpp
-    |   |-- createTexture(..., GL_RGB32F, GL_RGB)    // position
-    |   |-- createTexture(..., GL_RGB16F, GL_RGB)    // normal
-    |   |-- createTexture(..., GL_RGBA16F, GL_RGBA)  // material
-    |   |-- createDepthTexture(..., GL_DEPTH_COMPONENT24)
+    |-- GeometryBuffer::GeometryBuffer(width, height) -> GeometryBuffer
+    |                                                               src/GeometryBuffer.cpp
+    |   |-- FramebufferSupport::createTexture(..., GL_RGB32F, GL_RGB)
+    |   |       -> GLuint  // position
+    |   |-- FramebufferSupport::createTexture(..., GL_RGB16F, GL_RGB)
+    |   |       -> GLuint  // normal
+    |   |-- FramebufferSupport::createTexture(..., GL_RGBA16F, GL_RGBA)
+    |   |       -> GLuint  // material
+    |   |-- FramebufferSupport::createTexture(..., GL_DEPTH_COMPONENT24, ...)
+    |   |       -> GLuint  // depth
     |   |-- glGenFramebuffers(...)
-    |   |-- GeometryBuffer::bind()
+    |   |-- GeometryBuffer::bind() -> void; binds geometryFbo
     |   |   `-- glBindFramebuffer(GL_FRAMEBUFFER, geometryFbo)
     |   |-- glFramebufferTexture2D(GL_COLOR_ATTACHMENT0, position)
     |   |-- glFramebufferTexture2D(GL_COLOR_ATTACHMENT1, normal)
     |   |-- glFramebufferTexture2D(GL_COLOR_ATTACHMENT2, material)
     |   |-- glFramebufferTexture2D(GL_DEPTH_ATTACHMENT, depth)
     |   |-- glDrawBuffers(3, attachments)
-    |   `-- requireCompleteFramebuffer("geometry framebuffer")
+    |   `-- FramebufferSupport::requireComplete("geometry framebuffer") -> void
     |
-    |-- AmbientOcclusionBuffer::AmbientOcclusionBuffer(width, height)
+    |-- AmbientOcclusionBuffer::AmbientOcclusionBuffer(width, height) -> AmbientOcclusionBuffer
     |                                                     src/AmbientOcclusionBuffer.cpp
-    |   |-- createTexture(..., GL_R16F, GL_RED)
+    |   |-- FramebufferSupport::createTexture(..., GL_R16F, GL_RED) -> GLuint
     |   |-- glGenFramebuffers(...)
     |   |-- glBindFramebuffer(GL_FRAMEBUFFER, aoFbo)
     |   |-- glFramebufferTexture2D(GL_COLOR_ATTACHMENT0, aoTexture)
     |   |-- glDrawBuffer(GL_COLOR_ATTACHMENT0)
-    |   `-- requireCompleteFramebuffer("ambient occlusion framebuffer")
+    |   `-- FramebufferSupport::requireComplete("ambient occlusion framebuffer")
+    |           -> void
     |
-    |-- LightingBuffer::LightingBuffer(width, height)              src/LightingBuffer.cpp
-    |   |-- createTexture(..., GL_RGBA16F, GL_RGBA)
+    |-- LightingBuffer::LightingBuffer(width, height) -> LightingBuffer
+    |                                                               src/LightingBuffer.cpp
+    |   |-- FramebufferSupport::createTexture(..., GL_RGBA16F, GL_RGBA)
+    |   |       -> GLuint
     |   |-- glGenFramebuffers(...)
-    |   |-- LightingBuffer::bind()
+    |   |-- LightingBuffer::bind() -> void; binds lightingFbo
     |   |   `-- glBindFramebuffer(GL_FRAMEBUFFER, lightingFbo)
     |   |-- glFramebufferTexture2D(GL_COLOR_ATTACHMENT0, colorTexture)
     |   |-- glDrawBuffer(GL_COLOR_ATTACHMENT0)
-    |   `-- requireCompleteFramebuffer("lighting framebuffer")
+    |   `-- FramebufferSupport::requireComplete("lighting framebuffer") -> void
     |
-    |-- FullscreenTriangle::FullscreenTriangle()                   src/FullscreenTriangle.cpp
+    |-- FullscreenTriangle::FullscreenTriangle() -> FullscreenTriangle
+    |                                                               src/FullscreenTriangle.cpp
     |   `-- glGenVertexArrays(...)
     |
-    |-- renderGeometryPass(config, scene, meshes, shader, geometryBuffer)
-    |                                                               src/Renderer.cpp
-    |   |-- GeometryBuffer::bind()
+    |-- renderGeometryPass(config, scene, meshes, shader, geometryBuffer) -> void
+    |       // writes position, normal, material, and depth        src/Renderer.cpp
+    |   |-- GeometryBuffer::bind() -> void; binds geometryFbo
     |   |-- glViewport(0, 0, width, height)
     |   |-- glEnable(GL_DEPTH_TEST)
     |   |-- glDepthMask(GL_TRUE)
@@ -151,36 +167,38 @@ main(argc, argv)                                                  src/main.cpp
     |   |-- glDisable(GL_CULL_FACE)
     |   |-- glClearColor(0, 0, 0, 0)
     |   |-- glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    |   |-- ShaderProgram::use()
-    |   |-- sceneView(scene.camera)
-    |   |   `-- lookAt(camera.position, camera.target, camera.up)
+    |   |-- ShaderProgram::use() -> void; binds geometryProgram
+    |   |-- sceneView(scene.camera) -> Mat4
+    |   |   `-- lookAt(camera.position, camera.target, camera.up) -> Mat4
     |   |-- ShaderProgram::setMat4("uView", view)
-    |   |-- sceneProjection(scene.camera, config)
-    |   |   `-- perspective(fov, aspect, near, far)
+    |   |-- sceneProjection(scene.camera, config) -> Mat4
+    |   |   `-- perspective(fov, aspect, near, far) -> Mat4
     |   |-- ShaderProgram::setMat4("uProjection", projection)
     |   `-- for each GpuMesh
     |       |-- ShaderProgram::setBool("uEmissive", mesh.emissive())
-    |       `-- GpuMesh::draw()
+    |       `-- GpuMesh::draw() -> void; submits mesh triangles
     |           |-- glBindVertexArray(meshVao)
     |           `-- glDrawArrays(GL_TRIANGLES, 0, vertexCount)
     |
-    |-- AmbientOcclusionBuffer::clearNeutral()          src/AmbientOcclusionBuffer.cpp
-    |   |-- AmbientOcclusionBuffer::bind()
+    |-- AmbientOcclusionBuffer::clearNeutral() -> void
+    |       // writes AO visibility 1.0                   src/AmbientOcclusionBuffer.cpp
+    |   |-- AmbientOcclusionBuffer::bind() -> void; binds aoFbo
     |   |   `-- glBindFramebuffer(GL_FRAMEBUFFER, aoFbo)
     |   |-- glClearColor(1, 1, 1, 1)
     |   `-- glClear(GL_COLOR_BUFFER_BIT)
     |       // SSAO placeholder: every pixel has visibility 1.0
     |
-    |-- renderLightingPass(config, scene, lights, shadowMaps, ...) src/Renderer.cpp
-    |   |-- LightingBuffer::bind()
+    |-- renderLightingPass(config, scene, lights, shadowMaps, ...) -> void
+    |       // writes accumulated HDR color                       src/Renderer.cpp
+    |   |-- LightingBuffer::bind() -> void; binds lightingFbo
     |   |-- glViewport(0, 0, width, height)
     |   |-- glDisable(GL_DEPTH_TEST)
     |   |-- glDepthMask(GL_FALSE)
     |   |-- glClearColor(0.02, 0.025, 0.03, 1)
     |   |-- glClear(GL_COLOR_BUFFER_BIT)
-    |   |-- ShaderProgram::use()
+    |   |-- ShaderProgram::use() -> void; binds lightingProgram
     |   |
-    |   |-- bindLightingInputs(shader, geometryBuffer, aoBuffer)
+    |   |-- bindLightingInputs(shader, geometryBuffer, aoBuffer) -> void
     |   |   |-- GeometryBuffer::bindPosition(GL_TEXTURE0)
     |   |   |-- GeometryBuffer::bindNormal(GL_TEXTURE1)
     |   |   |-- GeometryBuffer::bindMaterial(GL_TEXTURE2)
@@ -191,14 +209,14 @@ main(argc, argv)                                                  src/main.cpp
     |   |-- set camera, background, ambient, light, shadow, and material uniforms
     |   |
     |   `-- for each lightIndex
-    |       |-- configureLightAccumulation(lightIndex)
+    |       |-- configureLightAccumulation(lightIndex) -> void
     |       |   |-- first light: glDisable(GL_BLEND)
     |       |   `-- later lights:
     |       |       |-- glEnable(GL_BLEND)
     |       |       `-- glBlendFunc(GL_ONE, GL_ONE)
     |       |
-    |       |-- bindLight(shader, light, shadowMap, lightCount, firstPass)
-    |       |   |-- ShadowMap::bind(GL_TEXTURE5)
+    |       |-- bindLight(shader, light, shadowMap, lightCount, firstPass) -> void
+    |       |   |-- ShadowMap::bind(GL_TEXTURE5) -> void
     |       |   |   |-- glActiveTexture(GL_TEXTURE5)
     |       |   |   `-- glBindTexture(GL_TEXTURE_2D, shadowDepthTexture)
     |       |   |-- ShaderProgram::setMat4("uLightViewProjection", ...)
@@ -207,43 +225,48 @@ main(argc, argv)                                                  src/main.cpp
     |       |   |-- ShaderProgram::setFloat("uInvLightCount", ...)
     |       |   `-- ShaderProgram::setBool("uFirstLightingPass", ...)
     |       |
-    |       `-- FullscreenTriangle::draw()
+    |       `-- FullscreenTriangle::draw() -> void; submits one screen triangle
     |           |-- glBindVertexArray(fullscreenVao)
     |           `-- glDrawArrays(GL_TRIANGLES, 0, 3)
-    |               `-- lightingFragment()                         src/ShaderSources.hpp
+    |               `-- lightingFragment() -> void; writes vec4 oColor
+    |                                                               src/ShaderSources.hpp
     |                   |-- sample position, normal, material, and depth
     |                   |-- sample neutral ambient-occlusion texture
-    |                   |-- pointShadow(worldPosition, normal)
+    |                   |-- pointShadow(worldPosition, normal) -> float visibility
     |                   |   `-- 3 x 3 PCF shadow-map samples
     |                   |-- first pass: ambient + direct light
     |                   `-- later passes: direct light only
     |
-    |-- LightingBuffer::writeColor(config.colorOutput)             src/LightingBuffer.cpp
-    |   |-- LightingBuffer::bind()
+    |-- LightingBuffer::writeColor(config.colorOutput) -> void
+    |       // writes final PPM                                   src/LightingBuffer.cpp
+    |   |-- LightingBuffer::bind() -> void; binds lightingFbo
     |   |-- glReadBuffer(GL_COLOR_ATTACHMENT0)
-    |   |-- readRgbPixels(width, height)
+    |   |-- readRgbPixels(width, height) -> std::vector<unsigned char>
     |   |   `-- glReadPixels(..., GL_RGBA, GL_FLOAT, ...)
-    |   `-- writePpm(path, width, height, rgb)
+    |   `-- FramebufferSupport::writePpm(path, width, height, rgb) -> void
     |
-    |-- GeometryBuffer::writeNormalDebug(config.normalOutput)
-    |   |-- GeometryBuffer::bind()
+    |-- GeometryBuffer::writeNormalDebug(config.normalOutput) -> void
+    |       // writes normal PPM
+    |   |-- GeometryBuffer::bind() -> void; binds geometryFbo
     |   |-- glReadBuffer(GL_COLOR_ATTACHMENT1)
-    |   |-- readNormalPixels(width, height)
+    |   |-- readNormalPixels(width, height) -> std::vector<unsigned char>
     |   |   `-- glReadPixels(..., GL_RGB, GL_FLOAT, ...)
-    |   `-- writePpm(path, width, height, rgb)
+    |   `-- FramebufferSupport::writePpm(path, width, height, rgb) -> void
     |
-    |-- GeometryBuffer::writeDepthDebug(config.depthOutput)
-    |   |-- GeometryBuffer::bind()
-    |   |-- readDepthPixels(width, height)
+    |-- GeometryBuffer::writeDepthDebug(config.depthOutput) -> void
+    |       // writes depth PPM
+    |   |-- GeometryBuffer::bind() -> void; binds geometryFbo
+    |   |-- readDepthPixels(width, height) -> std::vector<unsigned char>
     |   |   `-- glReadPixels(..., GL_DEPTH_COMPONENT, GL_FLOAT, ...)
-    |   `-- writePpm(path, width, height, rgb)
+    |   `-- FramebufferSupport::writePpm(path, width, height, rgb) -> void
     |
-    `-- AmbientOcclusionBuffer::writeDebug(config.ambientOcclusionOutput)
-        |-- AmbientOcclusionBuffer::bind()
+    `-- AmbientOcclusionBuffer::writeDebug(config.ambientOcclusionOutput) -> void
+            // writes AO PPM
+        |-- AmbientOcclusionBuffer::bind() -> void; binds aoFbo
         |-- glReadBuffer(GL_COLOR_ATTACHMENT0)
-        |-- readScalarPixels(width, height)
+        |-- readScalarPixels(width, height) -> std::vector<unsigned char>
         |   `-- glReadPixels(..., GL_RED, GL_FLOAT, ...)
-        `-- writePpm(path, width, height, rgb)
+        `-- FramebufferSupport::writePpm(path, width, height, rgb) -> void
 ```
 
 The G-buffer stores:
@@ -263,7 +286,8 @@ camera view matrix before constructing its sample basis.
 - `GeometryBuffer`: owns position, normal, material, and depth attachments.
 - `AmbientOcclusionBuffer`: owns the single-channel AO attachment.
 - `LightingBuffer`: owns the final HDR color attachment.
-- `FramebufferSupport`: provides shared texture, FBO validation, and PPM helpers.
+- `FramebufferSupport.hpp`: header-only internal texture, FBO validation, and
+  PPM helpers shared by the buffer implementations.
 - `FullscreenTriangle`: shared draw primitive for screen-space passes.
 - `ShaderSources`: geometry, lighting, fullscreen, and shadow shaders.
 - `ShadowMap`: depth target and rendering for one sampled point light.
