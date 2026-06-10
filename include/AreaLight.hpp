@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Math.hpp"
+#include "Scene.hpp"
+
 #include <vector>
 
 struct PointLight {
@@ -8,4 +10,4 @@ struct PointLight {
     Vec3 color{};
 };
 
-std::vector<PointLight> sampleCornellAreaLight(int samplesPerSide);
+std::vector<PointLight> sampleAreaLight(const RectAreaLight& areaLight, int samplesPerSide);

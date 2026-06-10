@@ -1,11 +1,11 @@
 #include "Renderer.hpp"
 
 #include "AreaLight.hpp"
-#include "CornellBoxScene.hpp"
 #include "Framebuffer.hpp"
 #include "GpuMesh.hpp"
 #include "Math.hpp"
 #include "ObjLoader.hpp"
+#include "Scene.hpp"
 #include "ShadowMap.hpp"
 #include "ShaderProgram.hpp"
 
@@ -100,7 +100,7 @@ void main() {
     vec3 lit = vec3(0.0);
 
     if (uEmissive) {
-        lit = uFirstLightingPass ? vec3(1.0, 0.94, 0.78) : vec3(0.0);
+        lit = uFirstLightingPass ? vKd : vec3(0.0);
     } else {
         vec3 ka = vKd;
         vec3 kd = vKd;
@@ -220,10 +220,10 @@ void checkGl(const std::string& label)
     }
 }
 
-std::vector<GpuMesh> uploadSceneMeshes(const AppConfig& config)
+std::vector<GpuMesh> uploadSceneMeshes(const Scene& scene)
 {
     std::vector<GpuMesh> meshes;
-    for (const SceneObject& object : loadCornellBoxScene(config.modelDir)) {
+    for (const SceneObject& object : scene.objects) {
         std::vector<Vertex> vertices = loadObjMesh(object.objPath, object.color, object.positionOffset);
         meshes.emplace_back(object.objPath.filename().string(), vertices, object.emissive);
     }
@@ -234,14 +234,14 @@ std::vector<ShadowMap> renderShadowMaps(const AppConfig& config,
     const std::vector<GpuMesh>& meshes,
     const std::vector<PointLight>& lights,
     const ShaderProgram& shadowShader,
-    float farPlane)
+    const ShadowSettings& settings)
 {
     std::vector<ShadowMap> shadowMaps;
     shadowMaps.reserve(lights.size());
 
     for (const PointLight& light : lights) {
         shadowMaps.emplace_back(config.shadowMapSize);
-        shadowMaps.back().render(meshes, shadowShader, light.position, farPlane);
+        shadowMaps.back().render(meshes, shadowShader, light.position, settings);
     }
     return shadowMaps;
 }
@@ -259,11 +259,6 @@ void bindLightUniforms(const ShaderProgram& shader,
     shader.setVec3("uLightColor", light.color);
     shader.setFloat("uInvLightCount", 1.0f / static_cast<float>(lightCount));
     shader.setBool("uFirstLightingPass", firstLightingPass);
-}
-
-Vec3 cornellCameraPosition()
-{
-    return Vec3(278.0f, 273.0f, -800.0f);
 }
 
 void configureLightingPass(size_t lightIndex)
@@ -286,21 +281,18 @@ void configureLightingPass(size_t lightIndex)
     glColorMaski(1, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 }
 
-Mat4 cornellView()
+Mat4 sceneView(const SceneCamera& camera)
 {
-    return lookAt(
-        cornellCameraPosition(),
-        Vec3(278.0f, 273.0f, 279.6f),
-        Vec3(0.0f, 1.0f, 0.0f));
+    return lookAt(camera.position, camera.target, camera.up);
 }
 
-Mat4 cornellProjection(const AppConfig& config)
+Mat4 sceneProjection(const SceneCamera& camera, const AppConfig& config)
 {
     return perspective(
-        radians(39.3077f),
+        radians(camera.fovYDegrees),
         static_cast<float>(config.width) / static_cast<float>(config.height),
-        0.1f,
-        2500.0f);
+        camera.nearPlane,
+        camera.farPlane);
 }
 
 } // namespace
@@ -312,11 +304,13 @@ void Renderer::render(const AppConfig& config)
     {
         ShaderProgram shader(kVertexShader, kFragmentShader);
         ShaderProgram shadowShader(kShadowVertexShader, kShadowFragmentShader);
-        std::vector<GpuMesh> meshes = uploadSceneMeshes(config);
-        std::vector<PointLight> lights = sampleCornellAreaLight(config.areaLightSamplesPerSide);
+        const Scene scene = loadScene(config.modelDir);
+        std::vector<GpuMesh> meshes = uploadSceneMeshes(scene);
+        std::vector<PointLight> lights = sampleAreaLight(
+            scene.areaLight, config.areaLightSamplesPerSide);
 
-        constexpr float shadowFarPlane = 1200.0f;
-        std::vector<ShadowMap> shadowMaps = renderShadowMaps(config, meshes, lights, shadowShader, shadowFarPlane);
+        std::vector<ShadowMap> shadowMaps = renderShadowMaps(
+            config, meshes, lights, shadowShader, scene.shadow);
 
         Framebuffer framebuffer(config.width, config.height);
 
@@ -327,9 +321,9 @@ void Renderer::render(const AppConfig& config)
         glClearColor(0.02f, 0.025f, 0.03f, 1.0f);
 
         shader.use();
-        shader.setMat4("uView", cornellView());
-        shader.setMat4("uProjection", cornellProjection(config));
-        shader.setVec3("uCameraPosition", cornellCameraPosition());
+        shader.setMat4("uView", sceneView(scene.camera));
+        shader.setMat4("uProjection", sceneProjection(scene.camera, config));
+        shader.setVec3("uCameraPosition", scene.camera.position);
         shader.setFloat("uAmbientStrength", config.ambientStrength);
         shader.setFloat("uLightIntensity", config.lightIntensity);
         shader.setFloat("uShadowMinLight", config.shadowMinLight);

@@ -2,6 +2,7 @@
 
 #include "GpuMesh.hpp"
 #include "Math.hpp"
+#include "Scene.hpp"
 #include "ShaderProgram.hpp"
 
 #include <GL/glew.h>
@@ -20,7 +21,7 @@ public:
     void render(const std::vector<GpuMesh>& meshes,
         const ShaderProgram& shader,
         const Vec3& lightPosition,
-        float farPlane);
+        const ShadowSettings& settings);
     void bind(GLenum textureUnit) const;
     const Mat4& lightViewProjection() const { return lightViewProjection_; }
 

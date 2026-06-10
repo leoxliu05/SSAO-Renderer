@@ -5,13 +5,11 @@
 
 namespace {
 
-Mat4 makeLightViewProjection(const Vec3& lightPosition, float farPlane)
+Mat4 makeLightViewProjection(const Vec3& lightPosition, const ShadowSettings& settings)
 {
-    const Mat4 projection = perspective(radians(90.0f), 1.0f, 1.0f, farPlane);
-    const Mat4 view = lookAt(
-        lightPosition,
-        Vec3(278.0f, 273.0f, 279.6f),
-        Vec3(0.0f, 0.0f, -1.0f));
+    const Mat4 projection = perspective(
+        radians(settings.fovYDegrees), 1.0f, settings.nearPlane, settings.farPlane);
+    const Mat4 view = lookAt(lightPosition, settings.target, settings.up);
     return projection * view;
 }
 
@@ -79,9 +77,9 @@ ShadowMap& ShadowMap::operator=(ShadowMap&& other) noexcept
 void ShadowMap::render(const std::vector<GpuMesh>& meshes,
     const ShaderProgram& shader,
     const Vec3& lightPosition,
-    float farPlane)
+    const ShadowSettings& settings)
 {
-    lightViewProjection_ = makeLightViewProjection(lightPosition, farPlane);
+    lightViewProjection_ = makeLightViewProjection(lightPosition, settings);
 
     glViewport(0, 0, size_, size_);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_);

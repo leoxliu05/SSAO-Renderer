@@ -8,12 +8,12 @@ screen-space pass using the existing color, normal, and depth attachments.
 The code is split by responsibility:
 
 - `AppConfig`: command-line options and output paths.
-- `CornellBoxScene`: Cornell Box object list and material colors.
+- `SceneLoader`: parses meshes, camera, area light, and shadow settings from `scene.json`.
 - `ObjLoader`: minimal OBJ triangle loading.
 - `GpuMesh`: VAO/VBO upload and draw.
 - `ShaderProgram`: shader compile/link and uniform helpers.
 - `Framebuffer`: color, normal, and depth render targets plus PPM dumps.
-- `AreaLight`: Cornell Box rectangular light sampled into point lights.
+- `AreaLight`: a configured rectangular light sampled into point lights.
 - `ShadowMap`: one traditional 2D perspective depth map per sampled light.
 - `Renderer`: OpenGL context setup and render-pass orchestration.
 
@@ -23,11 +23,12 @@ Dependencies used by CMake:
 
 - OpenGL
 - GLEW
+- nlohmann-json
 
 On macOS with Homebrew these can be installed with:
 
 ```sh
-brew install glew
+brew install glew nlohmann-json
 ```
 
 Build and render:
@@ -41,6 +42,25 @@ cmake --build build
 ```
 
 Default test assets are copied into `models/cornellbox` from `../../HW7`.
+`models/cornellbox/scene.json` selects the OBJ files and configures their
+materials, transforms, camera, rectangular area light, and shadow projection.
+The C++ renderer contains no Cornell Box object list or camera/light bounds.
+
+## Scene Configuration
+
+Each model directory must contain a `scene.json` with four top-level fields:
+
+- `objects`: relative OBJ path, diffuse/emissive color, optional position
+  offset, and optional `emissive` flag for every mesh.
+- `camera`: position, target, up vector, vertical FOV, near plane, and far
+  plane for the main rasterization pass.
+- `area_light`: rectangle origin, two edge vectors, and sampled light color.
+- `shadow`: target, up vector, vertical FOV, near plane, and far plane shared
+  by the per-sample point-light shadow cameras.
+
+`--model-dir` selects the directory, and `SceneLoader` always reads
+`<model-dir>/scene.json`. Adding another scene therefore requires model files
+and configuration data, not another scene-specific C++ source file.
 
 Useful runtime options:
 
@@ -80,8 +100,8 @@ small PCF filtering to reduce additive-pass banding and hard shadow-map stripes.
 - `build/normal_debug.ppm`: normal attachment visualized as RGB.
 - `build/depth_debug.ppm`: depth attachment visualized as grayscale.
 
-The default camera matches the HW7 Cornell Box convention: eye
-`(278, 273, -800)`, looking into the box.
+The default camera in `models/cornellbox/scene.json` matches the HW7 Cornell
+Box convention: eye `(278, 273, -800)`, looking into the box.
 
 The base render already includes shadow mapping. The Cornell Box area light is
 approximated by many point lights, which gives soft-shadow behavior while still
@@ -143,15 +163,22 @@ main(argc, argv)                                    src/main.cpp
 |   |-- ShaderProgram shadowShader(kShadowVertexShader, kShadowFragmentShader)
 |   |   |-- same compile/link path as above
 |   |
-|   |-- uploadSceneMeshes(config)
-|   |   |-- loadCornellBoxScene(config.modelDir)                         src/CornellBoxScene.cpp
-|   |   |   |-- return vector<SceneObject>
-|   |   |   |   |-- floor.obj: white diffuse, no offset, non-emissive
-|   |   |   |   |-- shortbox.obj: white diffuse, no offset, non-emissive
-|   |   |   |   |-- tallbox.obj: white diffuse, no offset, non-emissive
-|   |   |   |   |-- left.obj: red diffuse, no offset, non-emissive
-|   |   |   |   |-- right.obj: green diffuse, no offset, non-emissive
-|   |   |   |   |-- light.obj: warm display color, y offset -3.7, emissive
+|   |-- loadScene(config.modelDir)                                      src/SceneLoader.cpp
+|   |   |-- open modelDir/scene.json
+|   |   |-- nlohmann::json::parse(input)
+|   |   |-- readObjects(root, modelDir)
+|   |   |   |-- read mesh, color, optional offset, optional emissive
+|   |   |   |-- resolve each relative mesh path against modelDir
+|   |   |-- readCamera(root)
+|   |   |   |-- read position, target, up, FOV, near, far
+|   |   |-- readAreaLight(root)
+|   |   |   |-- read origin, edge_u, edge_v, color
+|   |   |-- readShadowSettings(root)
+|   |   |   |-- read target, up, FOV, near, far
+|   |   |-- validate arrays, finite values, ranges, and non-parallel light edges
+|   |   |-- return Scene
+|   |
+|   |-- uploadSceneMeshes(scene)
 |   |   |-- for each SceneObject
 |   |   |   |-- loadObjMesh(objPath, color, positionOffset)              src/ObjLoader.cpp
 |   |   |   |   |-- open OBJ file
@@ -171,17 +198,15 @@ main(argc, argv)                                    src/main.cpp
 |   |   |       |-- glBindVertexArray(0)
 |   |   |-- return vector<GpuMesh>
 |   |
-|   |-- sampleCornellAreaLight(config.areaLightSamplesPerSide)           src/AreaLight.cpp
+|   |-- sampleAreaLight(scene.areaLight, config.areaLightSamplesPerSide) src/AreaLight.cpp
 |   |   |-- samplesPerSide = max(samplesPerSide, 1)
-|   |   |-- use rectangle x=[213,343], y=545, z=[227,332]
 |   |   |-- for row in samplesPerSide
 |   |   |   |-- for col in samplesPerSide
-|   |   |       |-- sample cell center
-|   |   |       |-- push PointLight{position, white color}                include/AreaLight.hpp
+|   |   |       |-- sample cell center using origin + edge_u * u + edge_v * v
+|   |   |       |-- push PointLight{position, configured color}           include/AreaLight.hpp
 |   |   |-- return vector<PointLight>
 |   |
-|   |-- shadowFarPlane = 1200.0
-|   |-- renderShadowMaps(config, meshes, lights, shadowShader, shadowFarPlane)
+|   |-- renderShadowMaps(config, meshes, lights, shadowShader, scene.shadow)
 |   |   |-- for each PointLight
 |   |   |   |-- ShadowMap(config.shadowMapSize)                        src/ShadowMap.cpp
 |   |   |   |   |-- glGenFramebuffers
@@ -195,9 +220,9 @@ main(argc, argv)                                    src/main.cpp
 |   |   |   |   |-- glDrawBuffer(GL_NONE)
 |   |   |   |   |-- glReadBuffer(GL_NONE)
 |   |   |   |   |-- glCheckFramebufferStatus
-|   |   |   |-- ShadowMap::render(meshes, shadowShader, light.position, shadowFarPlane)
-|   |   |       |-- projection = perspective(90 deg, aspect 1, near 1, farPlane)   include/Math.hpp
-|   |   |       |-- view = lookAt(lightPosition, Cornell Box center, up)          include/Math.hpp
+|   |   |   |-- ShadowMap::render(meshes, shadowShader, light.position, scene.shadow)
+|   |   |       |-- projection = perspective(configured FOV/near/far, aspect 1)   include/Math.hpp
+|   |   |       |-- view = lookAt(lightPosition, configured target/up)             include/Math.hpp
 |   |   |       |-- store lightViewProjection = projection * view
 |   |   |       |-- glViewport(0, 0, shadowMapSize, shadowMapSize)
 |   |   |       |-- glBindFramebuffer(shadow FBO)
@@ -243,13 +268,11 @@ main(argc, argv)                                    src/main.cpp
 |   |   |-- glDisable(GL_CULL_FACE)
 |   |   |-- glClearColor(...)
 |   |   |-- shader.use()
-|   |   |-- shader.setMat4("uView", cornellView())
-|   |   |   |-- cornellView()
-|   |   |       |-- cornellCameraPosition()
-|   |   |       |-- lookAt(eye, center, up)                              include/Math.hpp
-|   |   |-- shader.setMat4("uProjection", cornellProjection(config))
-|   |   |   |-- perspective(fov, aspect, near, far)                    include/Math.hpp
-|   |   |-- shader.setVec3("uCameraPosition", cornellCameraPosition())
+|   |   |-- shader.setMat4("uView", sceneView(scene.camera))
+|   |   |   |-- lookAt(configured position, target, up)                  include/Math.hpp
+|   |   |-- shader.setMat4("uProjection", sceneProjection(scene.camera, config))
+|   |   |   |-- perspective(configured FOV/near/far, output aspect)      include/Math.hpp
+|   |   |-- shader.setVec3("uCameraPosition", scene.camera.position)
 |   |   |-- shader.setFloat("uAmbientStrength", config.ambientStrength)
 |   |   |-- shader.setFloat("uLightIntensity", config.lightIntensity)
 |   |   |-- shader.setFloat("uShadowMinLight", config.shadowMinLight)
@@ -362,11 +385,14 @@ Vertex                                  include/Vertex.hpp
 |-- Vec3 normal
 |-- Vec3 color
 
-SceneObject                             include/CornellBoxScene.hpp
+Scene / SceneObject                     include/Scene.hpp
 |-- objPath
 |-- color
 |-- positionOffset
 |-- emissive
+|-- SceneCamera
+|-- RectAreaLight
+|-- ShadowSettings
 
 PointLight                              include/AreaLight.hpp
 |-- position

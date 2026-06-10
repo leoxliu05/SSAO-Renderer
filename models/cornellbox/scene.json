@@ -1,0 +1,51 @@
+{
+  "camera": {
+    "position": [278.0, 273.0, -800.0],
+    "target": [278.0, 273.0, 279.6],
+    "up": [0.0, 1.0, 0.0],
+    "fov_y_degrees": 39.3077,
+    "near": 0.1,
+    "far": 2500.0
+  },
+  "area_light": {
+    "origin": [213.0, 545.0, 227.0],
+    "edge_u": [130.0, 0.0, 0.0],
+    "edge_v": [0.0, 0.0, 105.0],
+    "color": [1.0, 1.0, 1.0]
+  },
+  "shadow": {
+    "target": [278.0, 273.0, 279.6],
+    "up": [0.0, 0.0, -1.0],
+    "fov_y_degrees": 90.0,
+    "near": 1.0,
+    "far": 1200.0
+  },
+  "objects": [
+    {
+      "mesh": "floor.obj",
+      "color": [0.725, 0.710, 0.680]
+    },
+    {
+      "mesh": "shortbox.obj",
+      "color": [0.725, 0.710, 0.680]
+    },
+    {
+      "mesh": "tallbox.obj",
+      "color": [0.725, 0.710, 0.680]
+    },
+    {
+      "mesh": "left.obj",
+      "color": [0.630, 0.065, 0.050]
+    },
+    {
+      "mesh": "right.obj",
+      "color": [0.140, 0.450, 0.091]
+    },
+    {
+      "mesh": "light.obj",
+      "color": [1.0, 0.940, 0.780],
+      "offset": [0.0, -3.7, 0.0],
+      "emissive": true
+    }
+  ]
+}
