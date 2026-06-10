@@ -32,15 +32,18 @@ layout(location = 2) in vec3 aColor;
 
 uniform mat4 uView;
 uniform mat4 uProjection;
+uniform mat4 uLightViewProjection;
 
 out vec3 vWorldPosition;
 out vec3 vNormal;
 out vec3 vKd;
+out vec4 vLightSpacePosition;
 
 void main() {
     vWorldPosition = aPosition;
     vNormal = normalize(aNormal);
     vKd = aColor;
+    vLightSpacePosition = uLightViewProjection * vec4(aPosition, 1.0);
     gl_Position = uProjection * uView * vec4(aPosition, 1.0);
 }
 )GLSL";
@@ -54,12 +57,12 @@ layout(location = 1) out vec4 oNormal;
 in vec3 vWorldPosition;
 in vec3 vNormal;
 in vec3 vKd;
+in vec4 vLightSpacePosition;
 
 uniform vec3 uLightPosition;
 uniform vec3 uLightColor;
 uniform vec3 uCameraPosition;
-uniform samplerCube uShadowMap;
-uniform float uFarPlane;
+uniform sampler2D uShadowMap;
 uniform float uInvLightCount;
 uniform float uAmbientStrength;
 uniform float uLightIntensity;
@@ -70,31 +73,26 @@ uniform bool uEmissive;
 uniform bool uFirstLightingPass;
 
 float pointShadow(vec3 normal) {
-    vec3 lightToFragment = vWorldPosition - uLightPosition;
-    float currentDepth = length(lightToFragment) / uFarPlane;
-    if (currentDepth >= 1.0) {
+    vec3 projected = vLightSpacePosition.xyz / vLightSpacePosition.w;
+    projected = projected * 0.5 + 0.5;
+    if (projected.z >= 1.0 || projected.x <= 0.0 || projected.x >= 1.0 ||
+        projected.y <= 0.0 || projected.y >= 1.0) {
         return 1.0;
     }
 
     vec3 lightDir = normalize(uLightPosition - vWorldPosition);
-    float bias = max(0.006 * (1.0 - abs(dot(normal, lightDir))), 0.0015);
-    float radius = mix(1.5, 4.0, currentDepth);
-    vec3 offsets[7] = vec3[](
-        vec3(0.0, 0.0, 0.0),
-        vec3(1.0, 0.0, 0.0),
-        vec3(-1.0, 0.0, 0.0),
-        vec3(0.0, 1.0, 0.0),
-        vec3(0.0, -1.0, 0.0),
-        vec3(0.0, 0.0, 1.0),
-        vec3(0.0, 0.0, -1.0)
-    );
+    float bias = max(0.0025 * (1.0 - abs(dot(normal, lightDir))), 0.0005);
+    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
 
     float visibility = 0.0;
-    for (int i = 0; i < 7; ++i) {
-        float closestDepth = texture(uShadowMap, lightToFragment + offsets[i] * radius).r;
-        visibility += currentDepth - bias > closestDepth ? 0.0 : 1.0;
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            float closestDepth = texture(
+                uShadowMap, projected.xy + vec2(x, y) * texelSize).r;
+            visibility += projected.z - bias > closestDepth ? 0.0 : 1.0;
+        }
     }
-    return visibility / 7.0;
+    return visibility / 9.0;
 }
 
 void main() {
@@ -134,10 +132,7 @@ layout(location = 0) in vec3 aPosition;
 
 uniform mat4 uLightViewProjection;
 
-out vec3 vWorldPosition;
-
 void main() {
-    vWorldPosition = aPosition;
     gl_Position = uLightViewProjection * vec4(aPosition, 1.0);
 }
 )GLSL";
@@ -145,13 +140,7 @@ void main() {
 const char* kShadowFragmentShader = R"GLSL(
 #version 330 core
 
-in vec3 vWorldPosition;
-
-uniform vec3 uLightPosition;
-uniform float uFarPlane;
-
 void main() {
-    gl_FragDepth = length(vWorldPosition - uLightPosition) / uFarPlane;
 }
 )GLSL";
 
@@ -241,13 +230,13 @@ std::vector<GpuMesh> uploadSceneMeshes(const AppConfig& config)
     return meshes;
 }
 
-std::vector<ShadowCubeMap> renderShadowMaps(const AppConfig& config,
+std::vector<ShadowMap> renderShadowMaps(const AppConfig& config,
     const std::vector<GpuMesh>& meshes,
     const std::vector<PointLight>& lights,
     const ShaderProgram& shadowShader,
     float farPlane)
 {
-    std::vector<ShadowCubeMap> shadowMaps;
+    std::vector<ShadowMap> shadowMaps;
     shadowMaps.reserve(lights.size());
 
     for (const PointLight& light : lights) {
@@ -259,16 +248,15 @@ std::vector<ShadowCubeMap> renderShadowMaps(const AppConfig& config,
 
 void bindLightUniforms(const ShaderProgram& shader,
     const PointLight& light,
-    const ShadowCubeMap& shadowMap,
+    const ShadowMap& shadowMap,
     size_t lightCount,
-    float farPlane,
     bool firstLightingPass)
 {
     shadowMap.bind(GL_TEXTURE0);
     shader.setInt("uShadowMap", 0);
+    shader.setMat4("uLightViewProjection", shadowMap.lightViewProjection());
     shader.setVec3("uLightPosition", light.position);
     shader.setVec3("uLightColor", light.color);
-    shader.setFloat("uFarPlane", farPlane);
     shader.setFloat("uInvLightCount", 1.0f / static_cast<float>(lightCount));
     shader.setBool("uFirstLightingPass", firstLightingPass);
 }
@@ -328,7 +316,7 @@ void Renderer::render(const AppConfig& config)
         std::vector<PointLight> lights = sampleCornellAreaLight(config.areaLightSamplesPerSide);
 
         constexpr float shadowFarPlane = 1200.0f;
-        std::vector<ShadowCubeMap> shadowMaps = renderShadowMaps(config, meshes, lights, shadowShader, shadowFarPlane);
+        std::vector<ShadowMap> shadowMaps = renderShadowMaps(config, meshes, lights, shadowShader, shadowFarPlane);
 
         Framebuffer framebuffer(config.width, config.height);
 
@@ -350,7 +338,7 @@ void Renderer::render(const AppConfig& config)
 
         for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
             configureLightingPass(lightIndex);
-            bindLightUniforms(shader, lights[lightIndex], shadowMaps[lightIndex], lights.size(), shadowFarPlane, lightIndex == 0);
+            bindLightUniforms(shader, lights[lightIndex], shadowMaps[lightIndex], lights.size(), lightIndex == 0);
 
             for (const GpuMesh& mesh : meshes) {
                 shader.setBool("uEmissive", mesh.emissive());

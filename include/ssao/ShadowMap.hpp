@@ -7,26 +7,28 @@
 #include <GL/glew.h>
 #include <vector>
 
-class ShadowCubeMap {
+class ShadowMap {
 public:
-    explicit ShadowCubeMap(int size);
-    ~ShadowCubeMap();
+    explicit ShadowMap(int size);
+    ~ShadowMap();
 
-    ShadowCubeMap(const ShadowCubeMap&) = delete;
-    ShadowCubeMap& operator=(const ShadowCubeMap&) = delete;
-    ShadowCubeMap(ShadowCubeMap&& other) noexcept;
-    ShadowCubeMap& operator=(ShadowCubeMap&& other) noexcept;
+    ShadowMap(const ShadowMap&) = delete;
+    ShadowMap& operator=(const ShadowMap&) = delete;
+    ShadowMap(ShadowMap&& other) noexcept;
+    ShadowMap& operator=(ShadowMap&& other) noexcept;
 
     void render(const std::vector<GpuMesh>& meshes,
         const ShaderProgram& shader,
         const Vec3& lightPosition,
-        float farPlane) const;
+        float farPlane);
     void bind(GLenum textureUnit) const;
+    const Mat4& lightViewProjection() const { return lightViewProjection_; }
 
 private:
     void release();
 
     int size_ = 0;
     GLuint fbo_ = 0;
-    GLuint depthCubemap_ = 0;
+    GLuint depthTexture_ = 0;
+    Mat4 lightViewProjection_{};
 };
