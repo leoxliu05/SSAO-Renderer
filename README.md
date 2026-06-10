@@ -6,106 +6,176 @@ algorithm is intentionally not implemented yet.
 
 ## Pipeline
 
-The complete execution tree follows the current code path. OpenGL state calls
-are shown under the project function that issues them.
+The complete execution tree follows the current code path.
 
 ```cpp
-main(argc, argv) -> int                                           src/main.cpp
-|   // Parse and validate command-line renderer configuration.
-|-- parseAppConfig(argc, argv) -> AppConfig                       src/AppConfig.cpp
+// Parse and validate command-line renderer configuration.
+main(int argc, char** argv) -> int status                     src/main.cpp
+|-- parseAppConfig(argc, argv) -> AppConfig config            src/AppConfig.cpp
 |
-|   // Create the renderer and execute the complete frame pipeline.
-`-- Renderer::render(config) -> void                              src/Renderer.cpp
+|   // Create the renderer and drive the full frame pipeline.
+`-- Renderer::render(config) -> void                          src/Renderer.cpp
     |
-    |   // Set up the headless OpenGL context and initialize GLEW.
-    |-- OpenGLHelpers::Context() -> Context                       src/OpenGLHelpers.cpp
-    |   |-- CGLChoosePixelFormat(...)
-    |   |-- CGLCreateContext(...)
-    |   |-- CGLSetCurrentContext(...)
-    |   `-- glewInit()
+    |   // Set up a headless macOS CGL context and initialize GLEW.
+    |-- OpenGLHelpers::Context() -> Context context           src/OpenGLHelpers.cpp
+    |   |-- CGLChoosePixelFormat(attrs) -> CGLPixelFormatObj  (CGL)
+    |   |-- CGLCreateContext(pixelFormat) -> CGLContextObj    (CGL)
+    |   |-- CGLSetCurrentContext(context)                     (CGL)
+    |   `-- glewInit() -> GLenum                              (GLEW)
     |
-    |   // Load scene data, upload meshes, and sample the area light.
-    |-- Scene::Scene(config) -> Scene                             src/Scene.cpp
-    |   |-- parse <modelDir>/scene.json
-    |   |-- uploadMeshes(objects) -> std::vector<GpuMesh>
-    |   |   |-- loadObjMesh(...) -> std::vector<Vertex>           src/ObjLoader.cpp
-    |   |   `-- GpuMesh(...) -> GpuMesh                          src/GpuMesh.cpp
-    |   `-- sampleAreaLight(...) -> std::vector<PointLight>       src/AreaLight.cpp
+    |   // Load scene JSON, upload all meshes to GPU, sample area light into point lights.
+    |-- Scene::Scene(config) -> Scene scene                   src/Scene.cpp
+    |   |-- Json::parse(input) -> json root                   <nlohmann/json.hpp>
+    |   |-- readObjects(root, modelDir)                       src/Scene.cpp (static)
+    |   |   `-- std::vector<SceneObject> objects
+    |   |-- readCamera(root) -> SceneCamera camera            src/Scene.cpp (static)
+    |   |-- readAreaLight(root) -> RectAreaLight areaLight    src/Scene.cpp (static)
+    |   |-- readShadowSettings(root) -> ShadowSettings shadow src/Scene.cpp (static)
+    |   |-- uploadMeshes(objects) -> std::vector<GpuMesh> meshes
+    |   |   |                                           src/Scene.cpp (static)
+    |   |   |-- loadObjMesh(path, color, offset)              src/ObjLoader.cpp
+    |   |   |   `-> std::vector<Vertex> vertices
+    |   |   `-- GpuMesh(name, vertices, emissive) -> GpuMesh  src/GpuMesh.cpp
+    |   |       |-- glGenVertexArrays + glGenBuffers          (create VAO + VBO)
+    |   |       |-- glBufferData(GL_ARRAY_BUFFER, vertices)   (upload vertex data)
+    |   |       `-- glVertexAttribPointer × 3                 (layout: pos=0, normal=1, color=2)
+    |   `-- sampleAreaLight(areaLight, samplesPerSide)        src/AreaLight.cpp
+    |       `-> std::vector<PointLight> lights
     |
-    |   // Create the G-buffer position, normal, material, and depth attachments.
-    |-- GeometryBuffer(width, height) -> GeometryBuffer           src/GeometryBuffer.cpp
+    |   // Create G-buffer: allocates 4 GPU textures and assembles the FBO.
+    |-- GeometryBuffer(width, height) -> GeometryBuffer geometryBuffer
+    |   |                                                   src/GeometryBuffer.cpp
+    |   |-- FramebufferSupport::createTexture(w, h, GL_RGB32F, GL_RGB)
+    |   |   `-> GLuint positionTexture_   (world-space position)
+    |   |-- FramebufferSupport::createTexture(w, h, GL_RGB16F, GL_RGB)
+    |   |   `-> GLuint normalTexture_     (world-space normal)
+    |   |-- FramebufferSupport::createTexture(w, h, GL_RGBA16F, GL_RGBA)
+    |   |   `-> GLuint materialTexture_   (albedo + emissive flag)
+    |   |-- FramebufferSupport::createTexture(w, h, GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT)
+    |   |   `-> GLuint depthTexture_      (hardware depth)
+    |   |-- glGenFramebuffers → attach 3 color + 1 depth → glDrawBuffers(3)
+    |   `-- FramebufferSupport::requireComplete("geometry framebuffer")
     |
-    |   // Create the single-channel AO visibility target.
-    |-- AOBuffer(width, height) -> AOBuffer
-    |                                                     src/AOBuffer.cpp
+    |   // Create AO buffer: single-channel R16F texture + FBO.
+    |-- AOBuffer(width, height) -> AOBuffer aoBuffer          src/AOBuffer.cpp
+    |   |-- FramebufferSupport::createTexture(w, h, GL_R16F, GL_RED)
+    |   |   `-> GLuint texture_   (AO visibility)
+    |   |-- glGenFramebuffers → attach texture to GL_COLOR_ATTACHMENT0
+    |   `-- FramebufferSupport::requireComplete("ambient occlusion framebuffer")
     |
-    |   // Create the HDR target that receives final lighting.
-    |-- LightingBuffer(width, height) -> LightingBuffer           src/LightingBuffer.cpp
+    |   // Create HDR lighting buffer: RGBA16F texture + FBO.
+    |-- LightingBuffer(width, height) -> LightingBuffer lightingBuffer
+    |   |                                                   src/LightingBuffer.cpp
+    |   |-- FramebufferSupport::createTexture(w, h, GL_RGBA16F, GL_RGBA)
+    |   |   `-> GLuint texture_   (HDR accumulated color)
+    |   |-- glGenFramebuffers → attach texture to GL_COLOR_ATTACHMENT0
+    |   `-- FramebufferSupport::requireComplete("lighting framebuffer")
     |
-    |   // Create the depth-only shader used for all shadow maps.
-    |-- ShadowPass(shadowMapSize) -> ShadowPass                    src/ShadowPass.cpp
-    |   `-- ShaderProgram(shadow shaders) -> ShaderProgram        src/ShaderProgram.cpp
+    |   // Compile the depth-only shader used by every shadow map.
+    |-- ShadowPass(shadowMapSize) -> ShadowPass shadowPass    src/ShadowPass.cpp
+    |   `-- ShaderProgram(ShadowShaders::vertex, ShadowShaders::fragment)
+    |       |                                              src/ShaderProgram.cpp
+    |       |-- compileShader(GL_VERTEX_SHADER, src) -> GLuint
+    |       |-- compileShader(GL_FRAGMENT_SHADER, src) -> GLuint
+    |       |-- glCreateProgram → glAttachShader × 2 → glLinkProgram
+    |       `-- glDeleteShader × 2 (detach after link)
     |
-    |   // Create the shader that writes scene geometry into the G-buffer.
-    |-- GeometryPass() -> GeometryPass                            src/GeometryPass.cpp
-    |   `-- ShaderProgram(geometry shaders) -> ShaderProgram      src/ShaderProgram.cpp
+    |   // Compile the shader that writes world-space geometry into the G-buffer.
+    |-- GeometryPass() -> GeometryPass geometryPass           src/GeometryPass.cpp
+    |   `-- ShaderProgram(GeometryShaders::vertex, GeometryShaders::fragment)
+    |       |                                              src/ShaderProgram.cpp
+    |       |-- compileShader(vert) + compileShader(frag) → link
+    |       `-- (same compile-link pattern as above)
     |
-    |   // Create the current neutral AO stage.
-    |-- AOPass() -> AOPass
+    |   // Currently a no-op constructor; will own SSAO sample kernel later.
+    |-- AOPass() -> AOPass aoPass                             src/AOPass.cpp
     |
-    |   // Create the deferred-lighting shader and fullscreen draw primitive.
-    |-- LightingPass() -> LightingPass                            src/LightingPass.cpp
-    |   |-- ShaderProgram(lighting shaders) -> ShaderProgram      src/ShaderProgram.cpp
-    |   `-- FullscreenTriangle() -> FullscreenTriangle            src/FullscreenTriangle.cpp
+    |   // Compile the deferred-lighting shader and create the fullscreen draw VAO.
+    |-- LightingPass() -> LightingPass lightingPass           src/LightingPass.cpp
+    |   |-- ShaderProgram(LightingShaders::vertex, LightingShaders::fragment)
+    |   |   |                                              src/ShaderProgram.cpp
+    |   |   `-- (compile vert + frag → link, same pattern)
+    |   `-- FullscreenTriangle() -> FullscreenTriangle        src/FullscreenTriangle.cpp
+    |       `-- glGenVertexArrays(1, &vao_)                   (empty VAO for attrib-less draw)
     |
-    |   // Render one light-space depth texture for every sampled point light.
-    |-- ShadowPass::render(scene) -> std::vector<ShadowMap>        src/ShadowPass.cpp
-    |   `-- for each PointLight
-    |       |-- ShadowMap(shadowMapSize) -> ShadowMap              src/ShadowMap.cpp
-    |       `-- ShadowMap::render(...) -> void
-    |           |-- perspective(...) * lookAt(...) -> Mat4
-    |           |-- glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo)
-    |           |-- glClear(GL_DEPTH_BUFFER_BIT)
-    |           `-- GpuMesh::draw() -> void
+    |   // Render one depth texture per sampled point light.
+    |-- shadowPass.render(scene) -> std::vector<ShadowMap> shadowMaps
+    |   |                                                   src/ShadowPass.cpp
+    |   `-- for each PointLight light in scene.lights
+    |       |-- ShadowMap(shadowMapSize) -> ShadowMap         src/ShadowMap.cpp
+    |       |   |-- glGenFramebuffers + glGenTextures(DEPTH_COMPONENT24)
+    |       |   |-- set tex params: NEAREST, CLAMP_TO_BORDER
+    |       |   |-- attach depth texture to FBO (no color buffer)
+    |       |   `-- glCheckFramebufferStatus (validate complete)
+    |       `-- ShadowMap::render(meshes, shader, lightPosition, settings)
+    |           |                                           src/ShadowMap.cpp
+    |           |-- makeLightViewProjection(lightPosition, settings) -> Mat4
+    |           |   |                                       src/ShadowMap.cpp (static)
+    |           |   |-- perspective(fovY, 1.0, near, far) -> Mat4
+    |           |   `-- lookAt(lightPos, target, up) -> Mat4
+    |           |-- shader.use() -> void
+    |           |-- shader.setMat4("uLightViewProjection", mat) -> void
+    |           `-- for each non-emissive GpuMesh
+    |               `-- GpuMesh::draw() -> void               src/GpuMesh.cpp
     |
-    |   // Rasterize scene meshes once and fill every G-buffer attachment.
-    |-- GeometryPass::render(config, scene, geometryBuffer) -> void
-    |                                                               src/GeometryPass.cpp
-    |   |-- GeometryBuffer::bind() -> void
-    |   |-- glEnable(GL_DEPTH_TEST)
-    |   |-- ShaderProgram::use() -> void
-    |   |-- set view and projection matrices
-    |   `-- for each GpuMesh
-    |       `-- GpuMesh::draw() -> void
+    |   // Rasterize scene meshes once, filling all G-buffer attachments.
+    |-- geometryPass.render(config, scene, geometryBuffer) -> void
+    |   |                                                   src/GeometryPass.cpp
+    |   |-- geometryBuffer.bind() -> void                     src/GeometryBuffer.cpp
+    |   |-- makeView(scene.camera) -> Mat4 view               src/GeometryPass.cpp (static)
+    |   |   `-- lookAt(position, target, up) -> Mat4
+    |   |-- makeProjection(scene.camera, config) -> Mat4 proj src/GeometryPass.cpp (static)
+    |   |   `-- perspective(fovY, aspect, near, far) -> Mat4
+    |   |-- shader_.setMat4("uView", view) -> void            src/ShaderProgram.cpp
+    |   |-- shader_.setMat4("uProjection", proj) -> void      src/ShaderProgram.cpp
+    |   `-- for each GpuMesh mesh in scene.meshes
+    |       |-- shader_.setBool("uEmissive", mesh.emissive()) -> void
+    |       `-- GpuMesh::draw() -> void                       src/GpuMesh.cpp
     |
-    |   // Initialize AO visibility to 1.0 until SSAO is implemented.
-    |-- AOPass::render(aoBuffer) -> void
-    |                                                     src/AOPass.cpp
-    |   `-- AOBuffer::clearNeutral() -> void
+    |   // Write neutral visibility (1.0) into the AO buffer.
+    |-- aoPass.render(aoBuffer) -> void                       src/AOPass.cpp
+    |   `-- AOBuffer::clearNeutral() -> void                  src/AOBuffer.cpp
     |
-    |   // Read G-buffer, AO, and shadow textures and accumulate all lights.
-    |-- LightingPass::render(config, scene, shadowMaps, buffers...) -> void
-    |                                                               src/LightingPass.cpp
-    |   |-- LightingBuffer::bind() -> void
-    |   |-- bindSurfaceInputs(...) -> void
-    |   |   |-- bind position texture to GL_TEXTURE0
-    |   |   |-- bind normal texture to GL_TEXTURE1
-    |   |   |-- bind material texture to GL_TEXTURE2
-    |   |   |-- bind depth texture to GL_TEXTURE3
-    |   |   `-- bind AO texture to GL_TEXTURE4
-    |   `-- for each PointLight
-    |       |-- configureAccumulation(firstLight) -> void
-    |       |-- bindLight(..., shadowMap) -> void
-    |       |   `-- bind shadow texture to GL_TEXTURE5
-    |       `-- FullscreenTriangle::draw() -> void
-    |           `-- lighting fragment shader -> vec4 oColor
+    |   // Accumulate deferred lighting from every point light.
+    |-- lightingPass.render(config, scene, shadowMaps, geometryBuffer, aoBuffer, lightingBuffer)
+    |   |   -> void                                          src/LightingPass.cpp
+    |   |-- lightingBuffer.bind() -> void                     src/LightingBuffer.cpp
+    |   |-- bindSurfaceInputs(shader_, geometryBuffer, aoBuffer) -> void
+    |   |   |                                              src/LightingPass.cpp (static)
+    |   |   |-- GeometryBuffer::bindPosition(GL_TEXTURE0) -> void
+    |   |   |-- GeometryBuffer::bindNormal(GL_TEXTURE1) -> void
+    |   |   |-- GeometryBuffer::bindMaterial(GL_TEXTURE2) -> void
+    |   |   |-- GeometryBuffer::bindDepth(GL_TEXTURE3) -> void
+    |   |   `-- AOBuffer::bindTexture(GL_TEXTURE4) -> void
+    |   |-- shader_.setVec3("uCameraPosition", pos) -> void   src/ShaderProgram.cpp
+    |   |-- shader_.setFloat("uAmbientStrength", val) -> void
+    |   |-- shader_.setFloat("uLightIntensity", val) -> void
+    |   `-- for each PointLight light with index i
+    |       |-- configureAccumulation(i == 0) -> void         src/LightingPass.cpp (static)
+    |       |-- bindLight(shader_, light, shadowMaps[i], lightCount, i == 0) -> void
+    |       |   |                                          src/LightingPass.cpp (static)
+    |       |   |-- ShadowMap::bind(GL_TEXTURE5) -> void      src/ShadowMap.cpp
+    |       |   |-- shader_.setMat4("uLightViewProjection", mat) -> void
+    |       |   |-- shader_.setVec3("uLightPosition", pos) -> void
+    |       |   |-- shader_.setVec3("uLightColor", color) -> void
+    |       |   `-- shader_.setFloat("uInvLightCount", 1.0f/N) -> void
+    |       `-- fullscreenTriangle_.draw() -> void            src/FullscreenTriangle.cpp
     |
-    |   // Read the render targets and write final and debug PPM images.
-    `-- RenderOutputWriter::write(config, buffers...) -> void      src/RenderOutputWriter.cpp
-        |-- LightingBuffer::writeColor(...) -> void
-        |-- GeometryBuffer::writeNormalDebug(...) -> void
-        |-- GeometryBuffer::writeDepthDebug(...) -> void
-        `-- AOBuffer::writeDebug(...) -> void
+    |   // Read render targets and write final + debug PPM images to disk.
+    `-- outputWriter.write(config, geometryBuffer, aoBuffer, lightingBuffer) -> void
+        |                                                   src/RenderOutputWriter.cpp
+        |-- LightingBuffer::writeColor(config.colorOutput) -> void
+        |   |                                                   src/LightingBuffer.cpp
+        |   `-- FramebufferSupport::writePpm(path, w, h, rgb) -> void
+        |                                                       src/FramebufferSupport.hpp
+        |-- GeometryBuffer::writeNormalDebug(config.normalOutput) -> void
+        |   |                                                   src/GeometryBuffer.cpp
+        |   `-- FramebufferSupport::writePpm(path, w, h, rgb) -> void
+        |-- GeometryBuffer::writeDepthDebug(config.depthOutput) -> void
+        |   |                                                   src/GeometryBuffer.cpp
+        |   `-- FramebufferSupport::writePpm(path, w, h, rgb) -> void
+        `-- AOBuffer::writeDebug(config.aoOutput) -> void       src/AOBuffer.cpp
+            `-- FramebufferSupport::writePpm(path, w, h, rgb) -> void
 ```
 
 The G-buffer stores:
