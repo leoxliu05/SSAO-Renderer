@@ -9,6 +9,6 @@ class RenderOutputWriter {
 public:
     void write(const AppConfig& config,
         const GeometryBuffer& geometryBuffer,
-        const SSAOBuffer& ssaoBuffer,
+        const SSAOBuffer& SSAOBuffer,
         const LightingBuffer& lightingBuffer) const;
 };

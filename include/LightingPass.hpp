@@ -19,7 +19,7 @@ public:
         const Scene& scene,
         const std::vector<ShadowMap>& shadowMaps,
         const GeometryBuffer& geometryBuffer,
-        const SSAOBuffer& ssaoBuffer,
+        const SSAOBuffer& SSAOBuffer,
         const LightingBuffer& output) const;
 
 private:

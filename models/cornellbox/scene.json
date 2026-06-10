@@ -22,7 +22,9 @@
   },
   "area_light_samples": 8,
   "shadow_map_size": 512,
-  "ambient_strength": 0.14,
+  "ka": 0.14,
+  "kd": 1.0,
+  "ks": 0.0,
   "light_intensity": 1.0,
   "objects": [
     {

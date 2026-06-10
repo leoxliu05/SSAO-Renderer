@@ -2,7 +2,7 @@
 """Generate OBJ meshes + scene.json for the SSAO demo pillar-hall scene."""
 import json, math, os
 
-OUT = "models/ssao-demo"
+OUT = "models/SSAO-demo"
 os.makedirs(OUT, exist_ok=True)
 
 def write_obj(path, verts, faces):
@@ -117,7 +117,9 @@ scene = {
     },
     "area_light_samples": 12,
     "shadow_map_size": 2048,
-    "ambient_strength": 0.2,
+    "ka": 0.2,
+    "kd": 1.0,
+    "ks": 0.0,
     "light_intensity": 1.0,
     "objects": [
         {"mesh":"floor.obj",      "color":[0.58,0.53,0.47]},
@@ -142,4 +144,4 @@ scene = {
 with open(f"{OUT}/scene.json", 'w') as f:
     json.dump(scene, f, indent=2)
 print(f"  -> {OUT}/scene.json")
-print("Done! Run: ./build/SSAO_Renderer --model-dir models/ssao-demo")
+print("Done! Run: ./build/SSAO_Renderer --model-dir models/SSAO-demo")

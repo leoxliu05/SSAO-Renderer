@@ -8,8 +8,8 @@ BUILD_DIR="$ROOT_DIR/build"
 # Render settings.
 WIDTH=2560
 HEIGHT=1440
-MODEL_DIR="$ROOT_DIR/models/ssao-demo"
-ENABLE_SSAO=0   # set to 0 to disable SSAO
+MODEL_DIR="$ROOT_DIR/models/SSAO-demo"
+ENABLE_SSAO=1   # set to 0 to disable SSAO
 
 # Derive output folder name from model directory.
 MODEL_NAME="$(basename "$MODEL_DIR")"

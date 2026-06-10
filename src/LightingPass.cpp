@@ -16,13 +16,13 @@ constexpr GLenum kShadowUnit = GL_TEXTURE5;
 
 void bindSurfaceInputs(const ShaderProgram& shader,
     const GeometryBuffer& geometryBuffer,
-    const SSAOBuffer& ssaoBuffer)
+    const SSAOBuffer& SSAOBuffer)
 {
     geometryBuffer.bindPosition(kPositionUnit);
     geometryBuffer.bindNormal(kNormalUnit);
     geometryBuffer.bindMaterial(kMaterialUnit);
     geometryBuffer.bindDepth(kDepthUnit);
-    ssaoBuffer.bindTexture(kSSAOUnit);
+    SSAOBuffer.bindTexture(kSSAOUnit);
 
     shader.setInt("uPosition", 0);
     shader.setInt("uNormal", 1);
@@ -69,7 +69,7 @@ void LightingPass::render(const AppConfig& config,
     const Scene& scene,
     const std::vector<ShadowMap>& shadowMaps,
     const GeometryBuffer& geometryBuffer,
-    const SSAOBuffer& ssaoBuffer,
+    const SSAOBuffer& SSAOBuffer,
     const LightingBuffer& output) const
 {
     output.bind();
@@ -80,13 +80,14 @@ void LightingPass::render(const AppConfig& config,
     glClear(GL_COLOR_BUFFER_BIT);
 
     shader_.use();
-    bindSurfaceInputs(shader_, geometryBuffer, ssaoBuffer);
+    bindSurfaceInputs(shader_, geometryBuffer, SSAOBuffer);
     shader_.setVec3("uCameraPosition", scene.camera.position);
     shader_.setVec3("uBackgroundColor", Vec3(0.02f, 0.025f, 0.03f));
-    shader_.setFloat("uAmbientStrength", config.ambientStrength);
+    shader_.setFloat("uKa", config.ka);
+    shader_.setFloat("uKd", config.kd);
+    shader_.setFloat("uKs", config.ks);
     shader_.setFloat("uLightIntensity", config.lightIntensity);
     shader_.setFloat("uShininess", 32.0f);
-    shader_.setFloat("uSpecularStrength", 0.0f);
 
     for (size_t lightIndex = 0; lightIndex < scene.lights.size(); ++lightIndex) {
         const bool firstLight = lightIndex == 0;

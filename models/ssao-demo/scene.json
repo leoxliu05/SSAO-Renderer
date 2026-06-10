@@ -1,7 +1,9 @@
 {
   "area_light_samples": 12,
   "shadow_map_size": 2048,
-  "ambient_strength": 0.2,
+  "ka": 0.2,
+  "kd": 1.0,
+  "ks": 0.0,
   "light_intensity": 1.0,
   "camera": {
     "position": [

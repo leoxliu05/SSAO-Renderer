@@ -13,7 +13,9 @@ void printUsage()
         << "Usage: SSAO_Renderer [--width N] [--height N]\n"
         << "                     [--area-light-samples N]\n"
         << "                     [--shadow-map-size N]\n"
-        << "                     [--ambient-strength value]\n"
+        << "                     [--ka value]\n"
+        << "                     [--kd value]\n"
+        << "                     [--ks value]\n"
         << "                     [--light-intensity value]\n"
         << "                     [--model-dir path]\n"
         << "                     [--output render.ppm]\n"
@@ -44,8 +46,12 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.areaLightSamplesPerSide = std::stoi(requireValue("--area-light-samples"));
         } else if (arg == "--shadow-map-size") {
             config.shadowMapSize = std::stoi(requireValue("--shadow-map-size"));
-        } else if (arg == "--ambient-strength") {
-            config.ambientStrength = std::stof(requireValue("--ambient-strength"));
+        } else if (arg == "--ka") {
+            config.ka = std::stof(requireValue("--ka"));
+        } else if (arg == "--kd") {
+            config.kd = std::stof(requireValue("--kd"));
+        } else if (arg == "--ks") {
+            config.ks = std::stof(requireValue("--ks"));
         } else if (arg == "--light-intensity") {
             config.lightIntensity = std::stof(requireValue("--light-intensity"));
         } else if (arg == "--model-dir") {
@@ -58,7 +64,7 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.depthOutput = requireValue("--depth-output");
         } else if (arg == "--ssao-output") {
             config.ssaoOutput = requireValue("--ssao-output");
-        } else if (arg == "--no-ssao") {
+        } else if (arg == "--no-SSAO") {
             config.enableSSAO = false;
         } else if (arg == "--help" || arg == "-h") {
             printUsage();
@@ -80,8 +86,8 @@ AppConfig parseAppConfig(int argc, char** argv)
     if (config.shadowMapSize <= 0) {
         throw std::runtime_error("shadow map size must be positive");
     }
-    if (config.ambientStrength < 0.0f) {
-        throw std::runtime_error("ambient strength must be non-negative");
+    if (config.ka < 0.0f) {
+        throw std::runtime_error("ka must be non-negative");
     }
     if (config.lightIntensity < 0.0f) {
         throw std::runtime_error("light intensity must be non-negative");

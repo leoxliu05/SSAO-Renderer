@@ -39,10 +39,11 @@ uniform vec3 uLightColor;
 uniform vec3 uCameraPosition;
 uniform vec3 uBackgroundColor;
 uniform float uInvLightCount;
-uniform float uAmbientStrength;
+uniform float uKa;
+uniform float uKd;
+uniform float uKs;
 uniform float uLightIntensity;
 uniform float uShininess;
-uniform float uSpecularStrength;
 uniform bool uFirstLightingPass;
 
 float pointShadow(vec3 worldPosition, vec3 normal) {
@@ -84,12 +85,12 @@ void main() {
         max(dot(normal, halfwayDirection), 0.0), uShininess);
     float shadow = pointShadow(worldPosition, normal);
 
-    float ssao = texture(uSSAO, vUv).r;
+    float SSAO = texture(uSSAO, vUv).r;
     vec3 ambient = uFirstLightingPass
-        ? albedo * uAmbientStrength * ssao
+        ? albedo * uKa * SSAO
         : vec3(0.0);
-    vec3 diffuse = albedo * uLightColor * diffuseFactor;
-    vec3 specular = vec3(uSpecularStrength) * uLightColor * specularFactor;
+    vec3 diffuse = albedo * uKd * uLightColor * diffuseFactor;
+    vec3 specular = vec3(uKs) * uLightColor * specularFactor;
     vec3 direct = (diffuse + specular) * shadow * uLightIntensity * uInvLightCount;
 
     oColor = vec4(ambient + direct, 1.0);

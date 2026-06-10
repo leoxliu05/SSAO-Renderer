@@ -57,6 +57,8 @@ public:
     // render settings read from scene.json
     int areaLightSamplesPerSide = 8;
     int shadowMapSize = 512;
-    float ambientStrength = 0.2f;
+    float ka = 0.2f;
+    float kd = 1.0f;
+    float ks = 0.0f;
     float lightIntensity = 1.0f;
 };

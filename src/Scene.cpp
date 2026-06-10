@@ -151,7 +151,9 @@ Scene::Scene(const AppConfig& config)
 
         areaLightSamplesPerSide = root.value("area_light_samples", 8);
         shadowMapSize = root.value("shadow_map_size", 512);
-        ambientStrength = root.value("ambient_strength", 0.2f);
+        ka = root.value("ka", 0.2f);
+        kd = root.value("kd", 1.0f);
+        ks = root.value("ks", 0.0f);
         lightIntensity = root.value("light_intensity", 1.0f);
 
         lights = sampleAreaLight(areaLight, areaLightSamplesPerSide);
