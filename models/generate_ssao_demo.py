@@ -15,17 +15,20 @@ def write_obj(path, verts, faces):
 
 def cube_verts_faces(hx, hy, hz):
     verts = [
-        (-hx,-hy,-hz),(+hx,-hy,-hz),(+hx,+hy,-hz),(-hx,+hy,-hz),
-        (-hx,-hy,+hz),(+hx,-hy,+hz),(+hx,+hy,+hz),(-hx,+hy,+hz),
-        (-hx,-hy,-hz),(-hx,+hy,-hz),(-hx,+hy,+hz),(-hx,-hy,+hz),
-        (+hx,-hy,-hz),(+hx,+hy,-hz),(+hx,+hy,+hz),(+hx,-hy,+hz),
-        (-hx,-hy,-hz),(-hx,-hy,+hz),(+hx,-hy,+hz),(+hx,-hy,-hz),
-        (-hx,+hy,-hz),(-hx,+hy,+hz),(+hx,+hy,+hz),(+hx,+hy,-hz),
+        (-hx,-hy,-hz),(+hx,-hy,-hz),(+hx,+hy,-hz),(-hx,+hy,-hz),  # 0: -Z
+        (-hx,-hy,+hz),(+hx,-hy,+hz),(+hx,+hy,+hz),(-hx,+hy,+hz),  # 1: +Z
+        (-hx,-hy,-hz),(-hx,+hy,-hz),(-hx,+hy,+hz),(-hx,-hy,+hz),  # 2: -X
+        (+hx,-hy,-hz),(+hx,+hy,-hz),(+hx,+hy,+hz),(+hx,-hy,+hz),  # 3: +X
+        (-hx,-hy,-hz),(-hx,-hy,+hz),(+hx,-hy,+hz),(+hx,-hy,-hz),  # 4: -Y
+        (-hx,+hy,-hz),(-hx,+hy,+hz),(+hx,+hy,+hz),(+hx,+hy,-hz),  # 5: +Y
     ]
     faces = []
     for fi in range(6):
         b = fi * 4 + 1
-        faces += [(b,b+1,b+2),(b,b+2,b+3)]
+        if fi in (0, 2, 4):  # -Z, -X, -Y: reverse winding for outward normal
+            faces += [(b,b+3,b+2),(b,b+2,b+1)]
+        else:                # +Z, +X, +Y: standard CCW from outside
+            faces += [(b,b+1,b+2),(b,b+2,b+3)]
     return verts, faces
 
 def sphere_verts_faces(r, slices=24, stacks=12):
@@ -41,7 +44,7 @@ def sphere_verts_faces(r, slices=24, stacks=12):
     faces = []
     for j in range(slices):
         nj = (j+1) % slices
-        faces.append((1, 2+j, 2+nj))
+        faces.append((1, 2+nj, 2+j))  # CW from above → outward +Y normal
     for i in range(stacks-2):
         b = 1 + i*slices
         nb = b + slices
@@ -103,13 +106,13 @@ scene = {
     },
     "area_light": {
         "origin": [250.0, 395.0, 250.0],
-        "edge_u": [100.0, 0.0, 0.0],
-        "edge_v": [0.0, 0.0, 100.0],
+        "edge_u": [40.0, 0.0, 0.0],
+        "edge_v": [0.0, 0.0, 40.0],
         "color":  [1.0, 0.94, 0.82]
     },
     "shadow": {
         "target": [300.0, 0.0, 300.0],
-        "up": [0.0, 1.0, 0.0],
+        "up": [1.0, 0.0, 0.0],
         "fov_y_degrees": 120.0, "near": 1.0, "far": 2000.0
     },
     "objects": [
@@ -122,12 +125,12 @@ scene = {
         # SSAO showcase
         {"mesh":"sphere_40.obj",  "color":[0.85,0.75,0.60], "offset":[130,40,180]},
         {"mesh":"sphere_22.obj",  "color":[0.75,0.70,0.80], "offset":[40,22,160]},
-        {"mesh":"box_80.obj",     "color":[0.65,0.58,0.50], "offset":[380,0,250]},
-        {"mesh":"box_30.obj",     "color":[0.72,0.62,0.55], "offset":[80,0,500]},
-        {"mesh":"pillar.obj",     "color":[0.68,0.63,0.57], "offset":[150,0,400]},
-        {"mesh":"pillar.obj",     "color":[0.68,0.63,0.57], "offset":[450,0,400]},
-        {"mesh":"box_30.obj",     "color":[0.55,0.50,0.62], "offset":[555,0,200]},
-        {"mesh":"sphere_22.obj",  "color":[0.70,0.78,0.72], "offset":[480,22,500]},
+        {"mesh":"box_80.obj",     "color":[0.65,0.58,0.50], "offset":[330,40,280]},
+        {"mesh":"box_30.obj",     "color":[0.72,0.62,0.55], "offset":[80,15,500]},
+        {"mesh":"pillar.obj",     "color":[0.68,0.63,0.57], "offset":[150,110,400]},
+        {"mesh":"pillar.obj",     "color":[0.68,0.63,0.57], "offset":[450,110,400]},
+        {"mesh":"box_30.obj",     "color":[0.55,0.50,0.62], "offset":[510,15,240]},
+        {"mesh":"sphere_22.obj",  "color":[0.70,0.78,0.72], "offset":[410,22,420]},
         {"mesh":"arch.obj",       "color":[0.62,0.57,0.52], "offset":[220,185,400]},
     ]
 }

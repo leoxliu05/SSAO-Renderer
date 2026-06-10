@@ -8,11 +8,11 @@ BUILD_DIR="$ROOT_DIR/build"
 # Render settings. Edit these values for your usual test configuration.
 WIDTH=1024
 HEIGHT=1024
-AREA_LIGHT_SAMPLES=8
-SHADOW_MAP_SIZE=512
-AMBIENT_STRENGTH=0.14
+AREA_LIGHT_SAMPLES=12
+SHADOW_MAP_SIZE=2048
+AMBIENT_STRENGTH=0.05
 LIGHT_INTENSITY=1.00
-MODEL_DIR="$ROOT_DIR/models/cornellbox"
+MODEL_DIR="$ROOT_DIR/models/ssao-demo"
 
 # Derive output folder name from model directory.
 MODEL_NAME="$(basename "$MODEL_DIR")"

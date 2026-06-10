@@ -31,7 +31,7 @@ uniform sampler2D uNormal;
 uniform sampler2D uMaterial;
 uniform sampler2D uDepth;
 uniform sampler2D uAO;
-uniform sampler2D uShadowMap;
+uniform sampler2DShadow uShadowMap;
 
 uniform mat4 uLightViewProjection;
 uniform vec3 uLightPosition;
@@ -55,18 +55,8 @@ float pointShadow(vec3 worldPosition, vec3 normal) {
     }
 
     vec3 lightDirection = normalize(uLightPosition - worldPosition);
-    float bias = max(0.0025 * (1.0 - abs(dot(normal, lightDirection))), 0.0005);
-    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
-
-    float visibility = 0.0;
-    for (int y = -1; y <= 1; ++y) {
-        for (int x = -1; x <= 1; ++x) {
-            float closestDepth = texture(
-                uShadowMap, projected.xy + vec2(x, y) * texelSize).r;
-            visibility += projected.z - bias > closestDepth ? 0.0 : 1.0;
-        }
-    }
-    return visibility / 9.0;
+    float bias = max(0.0005 * (1.0 - abs(dot(normal, lightDirection))), 0.00005);
+    return texture(uShadowMap, vec3(projected.xy, projected.z - bias));
 }
 
 void main() {
