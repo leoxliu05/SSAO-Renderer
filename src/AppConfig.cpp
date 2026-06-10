@@ -19,7 +19,7 @@ void printUsage()
         << "                     [--output render.ppm]\n"
         << "                     [--normal-output normal_debug.ppm]\n"
         << "                     [--depth-output depth_debug.ppm]\n"
-        << "                     [--ao-output ambient_occlusion_debug.ppm]\n";
+        << "                     [--ssao-output ssao_debug.ppm]\n";
 }
 
 } // namespace
@@ -56,8 +56,8 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.normalOutput = requireValue("--normal-output");
         } else if (arg == "--depth-output") {
             config.depthOutput = requireValue("--depth-output");
-        } else if (arg == "--ao-output") {
-            config.aoOutput = requireValue("--ao-output");
+        } else if (arg == "--ssao-output") {
+            config.ssaoOutput = requireValue("--ssao-output");
         } else if (arg == "--help" || arg == "-h") {
             printUsage();
             std::exit(0);

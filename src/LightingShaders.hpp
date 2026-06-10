@@ -30,7 +30,7 @@ uniform sampler2D uPosition;
 uniform sampler2D uNormal;
 uniform sampler2D uMaterial;
 uniform sampler2D uDepth;
-uniform sampler2D uAO;
+uniform sampler2D uSSAO;
 uniform sampler2DShadow uShadowMap;
 
 uniform mat4 uLightViewProjection;
@@ -84,9 +84,9 @@ void main() {
         max(dot(normal, halfwayDirection), 0.0), uShininess);
     float shadow = pointShadow(worldPosition, normal);
 
-    float ao = texture(uAO, vUv).r;
+    float ssao = texture(uSSAO, vUv).r;
     vec3 ambient = uFirstLightingPass
-        ? albedo * uAmbientStrength * ao
+        ? albedo * uAmbientStrength * ssao
         : vec3(0.0);
     vec3 diffuse = albedo * uLightColor * diffuseFactor;
     vec3 specular = vec3(uSpecularStrength) * uLightColor * specularFactor;

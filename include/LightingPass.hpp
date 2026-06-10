@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AOBuffer.hpp"
+#include "SSAOBuffer.hpp"
 #include "AppConfig.hpp"
 #include "FullscreenTriangle.hpp"
 #include "GeometryBuffer.hpp"
@@ -19,7 +19,7 @@ public:
         const Scene& scene,
         const std::vector<ShadowMap>& shadowMaps,
         const GeometryBuffer& geometryBuffer,
-        const AOBuffer& aoBuffer,
+        const SSAOBuffer& ssaoBuffer,
         const LightingBuffer& output) const;
 
 private:

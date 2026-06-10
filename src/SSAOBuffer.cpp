@@ -1,4 +1,4 @@
-#include "AOBuffer.hpp"
+#include "SSAOBuffer.hpp"
 
 #include "FramebufferSupport.hpp"
 
@@ -27,7 +27,7 @@ std::vector<unsigned char> readScalarPixels(int width, int height)
 
 } // namespace
 
-AOBuffer::AOBuffer(int width, int height)
+SSAOBuffer::SSAOBuffer(int width, int height)
     : width_(width)
     , height_(height)
     , texture_(FramebufferSupport::createTexture(width, height, GL_R16F, GL_RED))
@@ -40,30 +40,30 @@ AOBuffer::AOBuffer(int width, int height)
     FramebufferSupport::requireComplete("ambient occlusion framebuffer");
 }
 
-AOBuffer::~AOBuffer()
+SSAOBuffer::~SSAOBuffer()
 {
     glDeleteTextures(1, &texture_);
     glDeleteFramebuffers(1, &fbo_);
 }
 
-void AOBuffer::bind() const
+void SSAOBuffer::bind() const
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
 }
 
-void AOBuffer::clearNeutral() const
+void SSAOBuffer::clearNeutral() const
 {
     bind();
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void AOBuffer::bindTexture(GLenum textureUnit) const
+void SSAOBuffer::bindTexture(GLenum textureUnit) const
 {
     FramebufferSupport::bindTexture(texture_, textureUnit);
 }
 
-void AOBuffer::writeDebug(const std::filesystem::path& path) const
+void SSAOBuffer::writeDebug(const std::filesystem::path& path) const
 {
     bind();
     glReadBuffer(GL_COLOR_ATTACHMENT0);

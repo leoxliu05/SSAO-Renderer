@@ -11,24 +11,24 @@ constexpr GLenum kPositionUnit = GL_TEXTURE0;
 constexpr GLenum kNormalUnit = GL_TEXTURE1;
 constexpr GLenum kMaterialUnit = GL_TEXTURE2;
 constexpr GLenum kDepthUnit = GL_TEXTURE3;
-constexpr GLenum kAOUnit = GL_TEXTURE4;
+constexpr GLenum kSSAOUnit = GL_TEXTURE4;
 constexpr GLenum kShadowUnit = GL_TEXTURE5;
 
 void bindSurfaceInputs(const ShaderProgram& shader,
     const GeometryBuffer& geometryBuffer,
-    const AOBuffer& aoBuffer)
+    const SSAOBuffer& ssaoBuffer)
 {
     geometryBuffer.bindPosition(kPositionUnit);
     geometryBuffer.bindNormal(kNormalUnit);
     geometryBuffer.bindMaterial(kMaterialUnit);
     geometryBuffer.bindDepth(kDepthUnit);
-    aoBuffer.bindTexture(kAOUnit);
+    ssaoBuffer.bindTexture(kSSAOUnit);
 
     shader.setInt("uPosition", 0);
     shader.setInt("uNormal", 1);
     shader.setInt("uMaterial", 2);
     shader.setInt("uDepth", 3);
-    shader.setInt("uAO", 4);
+    shader.setInt("uSSAO", 4);
     shader.setInt("uShadowMap", 5);
 }
 
@@ -69,7 +69,7 @@ void LightingPass::render(const AppConfig& config,
     const Scene& scene,
     const std::vector<ShadowMap>& shadowMaps,
     const GeometryBuffer& geometryBuffer,
-    const AOBuffer& aoBuffer,
+    const SSAOBuffer& ssaoBuffer,
     const LightingBuffer& output) const
 {
     output.bind();
@@ -80,7 +80,7 @@ void LightingPass::render(const AppConfig& config,
     glClear(GL_COLOR_BUFFER_BIT);
 
     shader_.use();
-    bindSurfaceInputs(shader_, geometryBuffer, aoBuffer);
+    bindSurfaceInputs(shader_, geometryBuffer, ssaoBuffer);
     shader_.setVec3("uCameraPosition", scene.camera.position);
     shader_.setVec3("uBackgroundColor", Vec3(0.02f, 0.025f, 0.03f));
     shader_.setFloat("uAmbientStrength", config.ambientStrength);

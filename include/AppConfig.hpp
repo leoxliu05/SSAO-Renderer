@@ -13,7 +13,7 @@ struct AppConfig {
     std::filesystem::path colorOutput = "render.ppm";
     std::filesystem::path normalOutput = "normal_debug.ppm";
     std::filesystem::path depthOutput = "depth_debug.ppm";
-    std::filesystem::path aoOutput = "ambient_occlusion_debug.ppm";
+    std::filesystem::path ssaoOutput = "ssao_debug.ppm";
 };
 
 AppConfig parseAppConfig(int argc, char** argv);

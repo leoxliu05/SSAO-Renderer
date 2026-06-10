@@ -4,13 +4,13 @@
 
 #include <filesystem>
 
-class AOBuffer {
+class SSAOBuffer {
 public:
-    AOBuffer(int width, int height);
-    ~AOBuffer();
+    SSAOBuffer(int width, int height);
+    ~SSAOBuffer();
 
-    AOBuffer(const AOBuffer&) = delete;
-    AOBuffer& operator=(const AOBuffer&) = delete;
+    SSAOBuffer(const SSAOBuffer&) = delete;
+    SSAOBuffer& operator=(const SSAOBuffer&) = delete;
 
     void bind() const;
     void clearNeutral() const;

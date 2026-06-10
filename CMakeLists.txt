@@ -12,8 +12,8 @@ find_package(GLEW REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(SSAO_Renderer
-    src/AOBuffer.cpp
-    src/AOPass.cpp
+    src/SSAOBuffer.cpp
+    src/SSAOPass.cpp
     src/AreaLight.cpp
     src/AppConfig.cpp
     src/FullscreenTriangle.cpp
