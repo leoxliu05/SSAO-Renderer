@@ -1,5 +1,6 @@
 #include "ObjLoader.hpp"
 
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <sstream>
@@ -28,9 +29,10 @@ std::vector<Vertex> loadObjMesh(const std::filesystem::path& path, const Vec3& c
     }
 
     std::vector<Vec3> positions;
-    std::vector<Vertex> vertices;
+    std::vector<std::array<int, 3>> triangles;
     std::string line;
 
+    // ── Pass 1: read positions and collect face index triplets ──
     while (std::getline(in, line)) {
         std::istringstream iss(line);
         std::string tag;
@@ -54,25 +56,53 @@ std::vector<Vertex> loadObjMesh(const std::filesystem::path& path, const Vec3& c
                 }
                 indices.push_back(index - 1);
             }
-
+            // Fan triangulation (works for quads and n-gons)
             for (size_t i = 1; i + 1 < indices.size(); ++i) {
-                const Vec3& p0 = positions[indices[0]];
-                const Vec3& p1 = positions[indices[i]];
-                const Vec3& p2 = positions[indices[i + 1]];
-                Vec3 normal = normalize(cross(p1 - p0, p2 - p0));
-                if (!std::isfinite(normal.x) || !std::isfinite(normal.y) || !std::isfinite(normal.z)) {
-                    normal = Vec3(0.0f, 1.0f, 0.0f);
-                }
-
-                vertices.push_back(Vertex{p0, normal, color});
-                vertices.push_back(Vertex{p1, normal, color});
-                vertices.push_back(Vertex{p2, normal, color});
+                triangles.push_back({indices[0], indices[i], indices[i + 1]});
             }
         }
     }
 
-    if (vertices.empty()) {
+    if (triangles.empty()) {
         throw std::runtime_error("OBJ contained no triangles: " + path.string());
     }
+
+    // ── Pass 2: accumulate face normals per vertex index ──
+    //  cross(p1-p0, p2-p0) is intentionally NOT normalized —
+    //  its magnitude = 2 × triangle area, so accumulation gives
+    //  area-weighted vertex normals after the final normalize.
+    //  Vertices shared across faces → smooth; unique → flat.
+    std::vector<Vec3> smoothNormals(positions.size(), Vec3(0.0f));
+
+    for (const auto& tri : triangles) {
+        const Vec3& p0 = positions[tri[0]];
+        const Vec3& p1 = positions[tri[1]];
+        const Vec3& p2 = positions[tri[2]];
+        Vec3 faceNormal = cross(p1 - p0, p2 - p0);
+        if (std::isfinite(faceNormal.x) && std::isfinite(faceNormal.y) && std::isfinite(faceNormal.z)) {
+            smoothNormals[tri[0]] = smoothNormals[tri[0]] + faceNormal;
+            smoothNormals[tri[1]] = smoothNormals[tri[1]] + faceNormal;
+            smoothNormals[tri[2]] = smoothNormals[tri[2]] + faceNormal;
+        }
+    }
+
+    for (auto& n : smoothNormals) {
+        float len = std::sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+        if (len > 1e-10f) {
+            n.x /= len; n.y /= len; n.z /= len;
+        } else {
+            n = Vec3(0.0f, 1.0f, 0.0f);
+        }
+    }
+
+    // ── Pass 3: output vertices with smooth normals + uniform color ──
+    std::vector<Vertex> vertices;
+    vertices.reserve(triangles.size() * 3);
+    for (const auto& tri : triangles) {
+        vertices.push_back(Vertex{positions[tri[0]], smoothNormals[tri[0]], color});
+        vertices.push_back(Vertex{positions[tri[1]], smoothNormals[tri[1]], color});
+        vertices.push_back(Vertex{positions[tri[2]], smoothNormals[tri[2]], color});
+    }
+
     return vertices;
 }
