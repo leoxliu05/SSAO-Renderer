@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderScene.hpp"
+#include "Scene.hpp"
 #include "ShaderProgram.hpp"
 #include "ShadowMap.hpp"
 
@@ -10,7 +10,7 @@ class ShadowPass {
 public:
     explicit ShadowPass(int shadowMapSize);
 
-    std::vector<ShadowMap> render(const RenderScene& scene) const;
+    std::vector<ShadowMap> render(const Scene& scene) const;
 
 private:
     int shadowMapSize_ = 0;

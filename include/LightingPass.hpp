@@ -1,11 +1,11 @@
 #pragma once
 
-#include "AmbientOcclusionBuffer.hpp"
+#include "AOBuffer.hpp"
 #include "AppConfig.hpp"
 #include "FullscreenTriangle.hpp"
 #include "GeometryBuffer.hpp"
 #include "LightingBuffer.hpp"
-#include "RenderScene.hpp"
+#include "Scene.hpp"
 #include "ShaderProgram.hpp"
 #include "ShadowMap.hpp"
 
@@ -16,10 +16,10 @@ public:
     LightingPass();
 
     void render(const AppConfig& config,
-        const RenderScene& scene,
+        const Scene& scene,
         const std::vector<ShadowMap>& shadowMaps,
         const GeometryBuffer& geometryBuffer,
-        const AmbientOcclusionBuffer& ambientOcclusionBuffer,
+        const AOBuffer& aoBuffer,
         const LightingBuffer& output) const;
 
 private:

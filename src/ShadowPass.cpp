@@ -8,15 +8,15 @@ ShadowPass::ShadowPass(int shadowMapSize)
 {
 }
 
-std::vector<ShadowMap> ShadowPass::render(const RenderScene& scene) const
+std::vector<ShadowMap> ShadowPass::render(const Scene& scene) const
 {
     std::vector<ShadowMap> shadowMaps;
-    shadowMaps.reserve(scene.lights().size());
+    shadowMaps.reserve(scene.lights.size());
 
-    for (const PointLight& light : scene.lights()) {
+    for (const PointLight& light : scene.lights) {
         shadowMaps.emplace_back(shadowMapSize_);
         shadowMaps.back().render(
-            scene.meshes(), shader_, light.position, scene.description().shadow);
+            scene.meshes, shader_, light.position, scene.shadow);
     }
     return shadowMaps;
 }

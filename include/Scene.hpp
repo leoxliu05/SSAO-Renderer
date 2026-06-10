@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AppConfig.hpp"
+#include "GpuMesh.hpp"
 #include "Math.hpp"
 
 #include <filesystem>
@@ -36,11 +38,19 @@ struct ShadowSettings {
     float farPlane = 1000.0f;
 };
 
-struct Scene {
+struct PointLight {
+    Vec3 position{};
+    Vec3 color{};
+};
+
+class Scene {
+public:
+    explicit Scene(const AppConfig& config);
+
     std::vector<SceneObject> objects;
     SceneCamera camera;
     RectAreaLight areaLight;
     ShadowSettings shadow;
+    std::vector<GpuMesh> meshes;
+    std::vector<PointLight> lights;
 };
-
-Scene loadScene(const std::filesystem::path& modelDir);

@@ -1,10 +1,11 @@
-#include "OpenGlContext.hpp"
+#include "OpenGLHelpers.hpp"
 
-#include <GL/glew.h>
-
+#include <sstream>
 #include <stdexcept>
 
-OpenGlContext::OpenGlContext()
+namespace OpenGLHelpers {
+
+Context::Context()
 {
 #ifdef __APPLE__
     CGLPixelFormatAttribute attributes[] = {
@@ -51,7 +52,7 @@ OpenGlContext::OpenGlContext()
     }
 }
 
-OpenGlContext::~OpenGlContext()
+Context::~Context()
 {
 #ifdef __APPLE__
     CGLSetCurrentContext(nullptr);
@@ -60,3 +61,15 @@ OpenGlContext::~OpenGlContext()
     }
 #endif
 }
+
+void checkError(const std::string& label)
+{
+    const GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::ostringstream message;
+        message << label << " failed with GL error 0x" << std::hex << error;
+        throw std::runtime_error(message.str());
+    }
+}
+
+} // namespace OpenGLHelpers

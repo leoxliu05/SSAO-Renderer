@@ -57,7 +57,7 @@ AppConfig parseAppConfig(int argc, char** argv)
         } else if (arg == "--depth-output") {
             config.depthOutput = requireValue("--depth-output");
         } else if (arg == "--ao-output") {
-            config.ambientOcclusionOutput = requireValue("--ao-output");
+            config.aoOutput = requireValue("--ao-output");
         } else if (arg == "--help" || arg == "-h") {
             printUsage();
             std::exit(0);

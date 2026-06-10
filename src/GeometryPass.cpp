@@ -2,7 +2,7 @@
 
 #include "GeometryShaders.hpp"
 #include "Math.hpp"
-#include "OpenGlSupport.hpp"
+#include "OpenGLHelpers.hpp"
 
 #include <GL/glew.h>
 
@@ -30,7 +30,7 @@ GeometryPass::GeometryPass()
 }
 
 void GeometryPass::render(const AppConfig& config,
-    const RenderScene& scene,
+    const Scene& scene,
     const GeometryBuffer& output) const
 {
     output.bind();
@@ -43,14 +43,14 @@ void GeometryPass::render(const AppConfig& config,
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     shader_.use();
-    shader_.setMat4("uView", makeView(scene.description().camera));
-    shader_.setMat4("uProjection", makeProjection(scene.description().camera, config));
+    shader_.setMat4("uView", makeView(scene.camera));
+    shader_.setMat4("uProjection", makeProjection(scene.camera, config));
 
-    for (const GpuMesh& mesh : scene.meshes()) {
+    for (const GpuMesh& mesh : scene.meshes) {
         shader_.setBool("uEmissive", mesh.emissive());
         mesh.draw();
     }
 
     glBindVertexArray(0);
-    checkGl("geometry pass");
+    OpenGLHelpers::checkError("geometry pass");
 }

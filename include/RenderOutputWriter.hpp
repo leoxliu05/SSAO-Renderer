@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AmbientOcclusionBuffer.hpp"
+#include "AOBuffer.hpp"
 #include "AppConfig.hpp"
 #include "GeometryBuffer.hpp"
 #include "LightingBuffer.hpp"
@@ -9,6 +9,6 @@ class RenderOutputWriter {
 public:
     void write(const AppConfig& config,
         const GeometryBuffer& geometryBuffer,
-        const AmbientOcclusionBuffer& ambientOcclusionBuffer,
+        const AOBuffer& aoBuffer,
         const LightingBuffer& lightingBuffer) const;
 };

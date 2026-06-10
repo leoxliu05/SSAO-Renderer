@@ -18,16 +18,16 @@ main(argc, argv) -> int                                           src/main.cpp
 `-- Renderer::render(config) -> void                              src/Renderer.cpp
     |
     |   // Set up the headless OpenGL context and initialize GLEW.
-    |-- OpenGlContext::OpenGlContext() -> OpenGlContext           src/OpenGlContext.cpp
+    |-- OpenGLHelpers::Context() -> Context                       src/OpenGLHelpers.cpp
     |   |-- CGLChoosePixelFormat(...)
     |   |-- CGLCreateContext(...)
     |   |-- CGLSetCurrentContext(...)
     |   `-- glewInit()
     |
     |   // Load scene data, upload meshes, and sample the area light.
-    |-- RenderScene::RenderScene(config) -> RenderScene           src/RenderScene.cpp
-    |   |-- loadScene(config.modelDir) -> Scene                   src/SceneLoader.cpp
-    |   |-- uploadMeshes(scene) -> std::vector<GpuMesh>
+    |-- Scene::Scene(config) -> Scene                             src/Scene.cpp
+    |   |-- parse <modelDir>/scene.json
+    |   |-- uploadMeshes(objects) -> std::vector<GpuMesh>
     |   |   |-- loadObjMesh(...) -> std::vector<Vertex>           src/ObjLoader.cpp
     |   |   `-- GpuMesh(...) -> GpuMesh                          src/GpuMesh.cpp
     |   `-- sampleAreaLight(...) -> std::vector<PointLight>       src/AreaLight.cpp
@@ -36,8 +36,8 @@ main(argc, argv) -> int                                           src/main.cpp
     |-- GeometryBuffer(width, height) -> GeometryBuffer           src/GeometryBuffer.cpp
     |
     |   // Create the single-channel AO visibility target.
-    |-- AmbientOcclusionBuffer(width, height) -> AmbientOcclusionBuffer
-    |                                                     src/AmbientOcclusionBuffer.cpp
+    |-- AOBuffer(width, height) -> AOBuffer
+    |                                                     src/AOBuffer.cpp
     |
     |   // Create the HDR target that receives final lighting.
     |-- LightingBuffer(width, height) -> LightingBuffer           src/LightingBuffer.cpp
@@ -51,7 +51,7 @@ main(argc, argv) -> int                                           src/main.cpp
     |   `-- ShaderProgram(geometry shaders) -> ShaderProgram      src/ShaderProgram.cpp
     |
     |   // Create the current neutral AO stage.
-    |-- AmbientOcclusionPass() -> AmbientOcclusionPass
+    |-- AOPass() -> AOPass
     |
     |   // Create the deferred-lighting shader and fullscreen draw primitive.
     |-- LightingPass() -> LightingPass                            src/LightingPass.cpp
@@ -79,9 +79,9 @@ main(argc, argv) -> int                                           src/main.cpp
     |       `-- GpuMesh::draw() -> void
     |
     |   // Initialize AO visibility to 1.0 until SSAO is implemented.
-    |-- AmbientOcclusionPass::render(ambientOcclusionBuffer) -> void
-    |                                                     src/AmbientOcclusionPass.cpp
-    |   `-- AmbientOcclusionBuffer::clearNeutral() -> void
+    |-- AOPass::render(aoBuffer) -> void
+    |                                                     src/AOPass.cpp
+    |   `-- AOBuffer::clearNeutral() -> void
     |
     |   // Read G-buffer, AO, and shadow textures and accumulate all lights.
     |-- LightingPass::render(config, scene, shadowMaps, buffers...) -> void
@@ -105,7 +105,7 @@ main(argc, argv) -> int                                           src/main.cpp
         |-- LightingBuffer::writeColor(...) -> void
         |-- GeometryBuffer::writeNormalDebug(...) -> void
         |-- GeometryBuffer::writeDepthDebug(...) -> void
-        `-- AmbientOcclusionBuffer::writeDebug(...) -> void
+        `-- AOBuffer::writeDebug(...) -> void
 ```
 
 The G-buffer stores:
@@ -117,20 +117,20 @@ The G-buffer stores:
 
 World-space geometry data keeps the existing shadow calculation direct. The
 SSAO implementation can transform position and normal into view space inside
-`AmbientOcclusionPass` before constructing its sample basis.
+`AOPass` before constructing its sample basis.
 
 ## Code Structure
 
 - `Renderer`: contains only top-level resource creation and pass ordering.
-- `RenderScene`: owns the parsed scene, uploaded meshes, and sampled lights.
+- `Scene`: owns parsed scene settings, uploaded meshes, and sampled lights.
 - `ShadowPass`: creates and renders the per-light shadow maps.
 - `GeometryPass`: rasterizes scene meshes into the G-buffer.
-- `AmbientOcclusionPass`: owns the AO stage; currently writes neutral visibility.
+- `AOPass`: owns the AO stage; currently writes neutral visibility.
 - `LightingPass`: owns deferred lighting, texture binding, and light accumulation.
 - `RenderOutputWriter`: writes final color and debug attachments to disk.
-- `OpenGlContext`: owns the headless macOS OpenGL context.
+- `OpenGLHelpers`: owns the headless context type and OpenGL error checking.
 - `GeometryBuffer`: owns position, normal, material, and depth attachments.
-- `AmbientOcclusionBuffer`: owns the single-channel AO attachment.
+- `AOBuffer`: owns the single-channel AO attachment.
 - `LightingBuffer`: owns the final HDR color attachment.
 - `FramebufferSupport.hpp`: header-only internal texture, FBO validation, and
   PPM helpers shared by the buffer implementations.
@@ -139,14 +139,13 @@ SSAO implementation can transform position and normal into view space inside
   grouped by their owning pass.
 - `ShadowMap`: depth target and rendering for one sampled point light.
 - `ShaderProgram`: shader compilation, linking, and uniform helpers.
-- `SceneLoader`: reads scene objects, camera, light, and shadow settings.
 - `GpuMesh`: owns one mesh VAO and VBO.
 
 The AO target is already sampled by the lighting shader only for the ambient
 term:
 
 ```glsl
-ambient = albedo * ambientStrength * ambientOcclusion;
+ambient = albedo * ambientStrength * ao;
 ```
 
 Direct lighting and shadow mapping are independent from AO.
@@ -205,12 +204,12 @@ code is required.
 
 ## Next SSAO Step
 
-The next implementation is isolated to `AmbientOcclusionPass`:
+The next implementation is isolated to `AOPass`:
 
 1. generate a hemisphere sample kernel and rotation-noise texture;
 2. read G-buffer position, normal, and depth;
 3. transform geometry into view space and evaluate visibility;
-4. write visibility into `AmbientOcclusionBuffer`;
+4. write visibility into `AOBuffer`;
 5. add a separate edge-aware blur target before lighting consumes AO.
 
 No geometry, shadow-map, or direct-lighting restructuring should be necessary

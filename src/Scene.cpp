@@ -1,5 +1,8 @@
 #include "Scene.hpp"
 
+#include "AreaLight.hpp"
+#include "ObjLoader.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <cmath>
@@ -113,10 +116,25 @@ std::vector<SceneObject> readObjects(const Json& root, const std::filesystem::pa
     return result;
 }
 
+std::vector<GpuMesh> uploadMeshes(const std::vector<SceneObject>& objects)
+{
+    std::vector<GpuMesh> meshes;
+    meshes.reserve(objects.size());
+
+    for (const SceneObject& object : objects) {
+        std::vector<Vertex> vertices = loadObjMesh(
+            object.objPath, object.color, object.positionOffset);
+        meshes.emplace_back(
+            object.objPath.filename().string(), vertices, object.emissive);
+    }
+    return meshes;
+}
+
 } // namespace
 
-Scene loadScene(const std::filesystem::path& modelDir)
+Scene::Scene(const AppConfig& config)
 {
+    const std::filesystem::path& modelDir = config.modelDir;
     const std::filesystem::path scenePath = modelDir / "scene.json";
     std::ifstream input(scenePath);
     if (!input) {
@@ -125,12 +143,12 @@ Scene loadScene(const std::filesystem::path& modelDir)
 
     try {
         const Json root = Json::parse(input);
-        Scene scene;
-        scene.objects = readObjects(root, modelDir);
-        scene.camera = readCamera(root);
-        scene.areaLight = readAreaLight(root);
-        scene.shadow = readShadowSettings(root);
-        return scene;
+        objects = readObjects(root, modelDir);
+        camera = readCamera(root);
+        areaLight = readAreaLight(root);
+        shadow = readShadowSettings(root);
+        meshes = uploadMeshes(objects);
+        lights = sampleAreaLight(areaLight, config.areaLightSamplesPerSide);
     } catch (const std::exception& error) {
         throw std::runtime_error("failed to parse " + scenePath.string() + ": " + error.what());
     }

@@ -4,13 +4,13 @@
 
 #include <filesystem>
 
-class AmbientOcclusionBuffer {
+class AOBuffer {
 public:
-    AmbientOcclusionBuffer(int width, int height);
-    ~AmbientOcclusionBuffer();
+    AOBuffer(int width, int height);
+    ~AOBuffer();
 
-    AmbientOcclusionBuffer(const AmbientOcclusionBuffer&) = delete;
-    AmbientOcclusionBuffer& operator=(const AmbientOcclusionBuffer&) = delete;
+    AOBuffer(const AOBuffer&) = delete;
+    AOBuffer& operator=(const AOBuffer&) = delete;
 
     void bind() const;
     void clearNeutral() const;
