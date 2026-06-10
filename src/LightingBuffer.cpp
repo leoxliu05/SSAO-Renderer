@@ -31,7 +31,7 @@ std::vector<unsigned char> readRgbPixels(int width, int height)
 LightingBuffer::LightingBuffer(int width, int height)
     : width_(width)
     , height_(height)
-    , texture_(FramebufferSupport::createTexture(width, height, GL_RGBA16F, GL_RGBA))
+    , texture_(FramebufferSupport::createTexture(width, height, GL_RGBA32F, GL_RGBA))
 {
     glGenFramebuffers(1, &fbo_);
     bind();
