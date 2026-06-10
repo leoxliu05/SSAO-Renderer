@@ -115,6 +115,10 @@ scene = {
         "up": [1.0, 0.0, 0.0],
         "fov_y_degrees": 120.0, "near": 1.0, "far": 2000.0
     },
+    "area_light_samples": 12,
+    "shadow_map_size": 2048,
+    "ambient_strength": 0.2,
+    "light_intensity": 1.0,
     "objects": [
         {"mesh":"floor.obj",      "color":[0.58,0.53,0.47]},
         {"mesh":"wall_back.obj",  "color":[0.70,0.65,0.58], "offset":[0,0,600]},

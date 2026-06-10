@@ -26,6 +26,12 @@ void Renderer::render(AppConfig config)
     OpenGLHelpers::Context context;
     Scene scene(config);
 
+    // Scene-provided settings override AppConfig defaults.
+    config.areaLightSamplesPerSide = scene.areaLightSamplesPerSide;
+    config.shadowMapSize = scene.shadowMapSize;
+    config.ambientStrength = scene.ambientStrength;
+    config.lightIntensity = scene.lightIntensity;
+
     GeometryBuffer geometryBuffer(config.width, config.height);
     AOBuffer aoBuffer(config.width, config.height);
     LightingBuffer lightingBuffer(config.width, config.height);

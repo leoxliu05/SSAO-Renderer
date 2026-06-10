@@ -56,6 +56,10 @@
     "near": 1.0,
     "far": 2000.0
   },
+  "area_light_samples": 12,
+  "shadow_map_size": 2048,
+  "ambient_strength": 0.2,
+  "light_intensity": 1.0,
   "objects": [
     {
       "mesh": "floor.obj",

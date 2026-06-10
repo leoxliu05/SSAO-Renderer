@@ -148,7 +148,13 @@ Scene::Scene(const AppConfig& config)
         areaLight = readAreaLight(root);
         shadow = readShadowSettings(root);
         meshes = uploadMeshes(objects);
-        lights = sampleAreaLight(areaLight, config.areaLightSamplesPerSide);
+
+        areaLightSamplesPerSide = root.value("area_light_samples", 8);
+        shadowMapSize = root.value("shadow_map_size", 512);
+        ambientStrength = root.value("ambient_strength", 0.2f);
+        lightIntensity = root.value("light_intensity", 1.0f);
+
+        lights = sampleAreaLight(areaLight, areaLightSamplesPerSide);
     } catch (const std::exception& error) {
         throw std::runtime_error("failed to parse " + scenePath.string() + ": " + error.what());
     }

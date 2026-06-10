@@ -53,4 +53,10 @@ public:
     ShadowSettings shadow;
     std::vector<GpuMesh> meshes;
     std::vector<PointLight> lights;
+
+    // render settings read from scene.json
+    int areaLightSamplesPerSide = 8;
+    int shadowMapSize = 512;
+    float ambientStrength = 0.2f;
+    float lightIntensity = 1.0f;
 };

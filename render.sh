@@ -5,18 +5,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
 
-# Render settings. Edit these values for your usual test configuration.
-WIDTH=1024
+# Render settings.
+WIDTH=2048
 HEIGHT=1024
-AREA_LIGHT_SAMPLES=12
-SHADOW_MAP_SIZE=2048
-AMBIENT_STRENGTH=0.05
-LIGHT_INTENSITY=1.00
 MODEL_DIR="$ROOT_DIR/models/ssao-demo"
 
 # Derive output folder name from model directory.
 MODEL_NAME="$(basename "$MODEL_DIR")"
 OUT_DIR="$BUILD_DIR/$MODEL_NAME"
+PNG_OUTPUT="$OUT_DIR/render.png"
 
 cmake -S "$ROOT_DIR" -B "$BUILD_DIR"
 cmake --build "$BUILD_DIR" --parallel
@@ -24,10 +21,6 @@ cmake --build "$BUILD_DIR" --parallel
 "$BUILD_DIR/SSAO_Renderer" \
     --width "$WIDTH" \
     --height "$HEIGHT" \
-    --area-light-samples "$AREA_LIGHT_SAMPLES" \
-    --shadow-map-size "$SHADOW_MAP_SIZE" \
-    --ambient-strength "$AMBIENT_STRENGTH" \
-    --light-intensity "$LIGHT_INTENSITY" \
     --model-dir "$MODEL_DIR" \
     "$@"
 
@@ -37,6 +30,6 @@ if ! command -v sips >/dev/null 2>&1; then
 fi
 
 sips -s format png "$OUT_DIR/render.ppm" \
-    --out "$OUT_DIR/render.png" >/dev/null
+    --out "$PNG_OUTPUT" >/dev/null
 
-printf 'Wrote %s\n' "$BUILD_DIR/render.png"
+printf 'Wrote %s\n' "$PNG_OUTPUT"
