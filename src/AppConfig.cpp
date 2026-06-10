@@ -15,11 +15,11 @@ void printUsage()
         << "                     [--shadow-map-size N]\n"
         << "                     [--ambient-strength value]\n"
         << "                     [--light-intensity value]\n"
-        << "                     [--shadow-min-light value]\n"
         << "                     [--model-dir path]\n"
         << "                     [--output render.ppm]\n"
         << "                     [--normal-output normal_debug.ppm]\n"
-        << "                     [--depth-output depth_debug.ppm]\n";
+        << "                     [--depth-output depth_debug.ppm]\n"
+        << "                     [--ao-output ambient_occlusion_debug.ppm]\n";
 }
 
 } // namespace
@@ -48,8 +48,6 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.ambientStrength = std::stof(requireValue("--ambient-strength"));
         } else if (arg == "--light-intensity") {
             config.lightIntensity = std::stof(requireValue("--light-intensity"));
-        } else if (arg == "--shadow-min-light") {
-            config.shadowMinLight = std::stof(requireValue("--shadow-min-light"));
         } else if (arg == "--model-dir") {
             config.modelDir = requireValue("--model-dir");
         } else if (arg == "--output") {
@@ -58,6 +56,8 @@ AppConfig parseAppConfig(int argc, char** argv)
             config.normalOutput = requireValue("--normal-output");
         } else if (arg == "--depth-output") {
             config.depthOutput = requireValue("--depth-output");
+        } else if (arg == "--ao-output") {
+            config.ambientOcclusionOutput = requireValue("--ao-output");
         } else if (arg == "--help" || arg == "-h") {
             printUsage();
             std::exit(0);
@@ -83,9 +83,6 @@ AppConfig parseAppConfig(int argc, char** argv)
     }
     if (config.lightIntensity < 0.0f) {
         throw std::runtime_error("light intensity must be non-negative");
-    }
-    if (config.shadowMinLight < 0.0f || config.shadowMinLight > 1.0f) {
-        throw std::runtime_error("shadow min light must be in [0, 1]");
     }
     return config;
 }

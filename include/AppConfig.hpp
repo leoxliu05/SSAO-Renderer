@@ -9,11 +9,11 @@ struct AppConfig {
     int shadowMapSize = 512;
     float ambientStrength = 0.20f;
     float lightIntensity = 1.00f;
-    float shadowMinLight = 0.25f;
     std::filesystem::path modelDir = "models/cornellbox";
     std::filesystem::path colorOutput = "render.ppm";
     std::filesystem::path normalOutput = "normal_debug.ppm";
     std::filesystem::path depthOutput = "depth_debug.ppm";
+    std::filesystem::path ambientOcclusionOutput = "ambient_occlusion_debug.ppm";
 };
 
 AppConfig parseAppConfig(int argc, char** argv);

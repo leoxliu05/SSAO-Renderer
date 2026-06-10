@@ -12,10 +12,14 @@ find_package(GLEW REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(SSAO_Renderer
+    src/AmbientOcclusionBuffer.cpp
     src/AreaLight.cpp
     src/AppConfig.cpp
-    src/Framebuffer.cpp
+    src/FramebufferSupport.cpp
+    src/FullscreenTriangle.cpp
+    src/GeometryBuffer.cpp
     src/GpuMesh.cpp
+    src/LightingBuffer.cpp
     src/ObjLoader.cpp
     src/Renderer.cpp
     src/SceneLoader.cpp

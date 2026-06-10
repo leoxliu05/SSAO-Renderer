@@ -1,13 +1,17 @@
 #include "Renderer.hpp"
 
+#include "AmbientOcclusionBuffer.hpp"
 #include "AreaLight.hpp"
-#include "Framebuffer.hpp"
+#include "FullscreenTriangle.hpp"
+#include "GeometryBuffer.hpp"
 #include "GpuMesh.hpp"
+#include "LightingBuffer.hpp"
 #include "Math.hpp"
 #include "ObjLoader.hpp"
 #include "Scene.hpp"
-#include "ShadowMap.hpp"
 #include "ShaderProgram.hpp"
+#include "ShaderSources.hpp"
+#include "ShadowMap.hpp"
 
 #include <GL/glew.h>
 #ifdef __APPLE__
@@ -15,7 +19,6 @@
 #endif
 
 #include <iostream>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -23,126 +26,12 @@
 
 namespace {
 
-const char* kVertexShader = R"GLSL(
-#version 330 core
-
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-
-uniform mat4 uView;
-uniform mat4 uProjection;
-uniform mat4 uLightViewProjection;
-
-out vec3 vWorldPosition;
-out vec3 vNormal;
-out vec3 vKd;
-out vec4 vLightSpacePosition;
-
-void main() {
-    vWorldPosition = aPosition;
-    vNormal = normalize(aNormal);
-    vKd = aColor;
-    vLightSpacePosition = uLightViewProjection * vec4(aPosition, 1.0);
-    gl_Position = uProjection * uView * vec4(aPosition, 1.0);
-}
-)GLSL";
-
-const char* kFragmentShader = R"GLSL(
-#version 330 core
-
-layout(location = 0) out vec4 oColor;
-layout(location = 1) out vec4 oNormal;
-
-in vec3 vWorldPosition;
-in vec3 vNormal;
-in vec3 vKd;
-in vec4 vLightSpacePosition;
-
-uniform vec3 uLightPosition;
-uniform vec3 uLightColor;
-uniform vec3 uCameraPosition;
-uniform sampler2D uShadowMap;
-uniform float uInvLightCount;
-uniform float uAmbientStrength;
-uniform float uLightIntensity;
-uniform float uShadowMinLight;
-uniform float uShininess;
-uniform float uSpecularStrength;
-uniform bool uEmissive;
-uniform bool uFirstLightingPass;
-
-float pointShadow(vec3 normal) {
-    vec3 projected = vLightSpacePosition.xyz / vLightSpacePosition.w;
-    projected = projected * 0.5 + 0.5;
-    if (projected.z >= 1.0 || projected.x <= 0.0 || projected.x >= 1.0 ||
-        projected.y <= 0.0 || projected.y >= 1.0) {
-        return 1.0;
-    }
-
-    vec3 lightDir = normalize(uLightPosition - vWorldPosition);
-    float bias = max(0.0025 * (1.0 - abs(dot(normal, lightDir))), 0.0005);
-    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
-
-    float visibility = 0.0;
-    for (int y = -1; y <= 1; ++y) {
-        for (int x = -1; x <= 1; ++x) {
-            float closestDepth = texture(
-                uShadowMap, projected.xy + vec2(x, y) * texelSize).r;
-            visibility += projected.z - bias > closestDepth ? 0.0 : 1.0;
-        }
-    }
-    return visibility / 9.0;
-}
-
-void main() {
-    vec3 n = normalize(vNormal);
-    vec3 lit = vec3(0.0);
-
-    if (uEmissive) {
-        lit = uFirstLightingPass ? vKd : vec3(0.0);
-    } else {
-        vec3 ka = vKd;
-        vec3 kd = vKd;
-        vec3 ks = vec3(uSpecularStrength);
-
-        vec3 l = normalize(uLightPosition - vWorldPosition);
-        vec3 v = normalize(uCameraPosition - vWorldPosition);
-        vec3 h = normalize(l + v);
-
-        float diffuseFactor = max(abs(dot(n, l)), 0.0);
-        float specularFactor = pow(max(abs(dot(n, h)), 0.0), uShininess);
-        float shadow = mix(uShadowMinLight, 1.0, pointShadow(n));
-
-        vec3 ambient = uFirstLightingPass ? ka * uAmbientStrength : vec3(0.0);
-        vec3 diffuse = kd * uLightColor * diffuseFactor;
-        vec3 specular = ks * uLightColor * specularFactor;
-        lit = ambient + (diffuse + specular) * shadow * uLightIntensity * uInvLightCount;
-    }
-
-    oColor = vec4(lit, 1.0);
-    oNormal = vec4(n * 0.5 + 0.5, 1.0);
-}
-)GLSL";
-
-const char* kShadowVertexShader = R"GLSL(
-#version 330 core
-
-layout(location = 0) in vec3 aPosition;
-
-uniform mat4 uLightViewProjection;
-
-void main() {
-    gl_Position = uLightViewProjection * vec4(aPosition, 1.0);
-}
-)GLSL";
-
-const char* kShadowFragmentShader = R"GLSL(
-#version 330 core
-
-void main() {
-}
-)GLSL";
+constexpr GLenum kPositionUnit = GL_TEXTURE0;
+constexpr GLenum kNormalUnit = GL_TEXTURE1;
+constexpr GLenum kMaterialUnit = GL_TEXTURE2;
+constexpr GLenum kDepthUnit = GL_TEXTURE3;
+constexpr GLenum kAmbientOcclusionUnit = GL_TEXTURE4;
+constexpr GLenum kShadowUnit = GL_TEXTURE5;
 
 class OpenGlContext {
 public:
@@ -180,14 +69,16 @@ public:
             throw std::runtime_error("failed to make CGL context current");
         }
 #else
-        throw std::runtime_error("headless OpenGL context setup is implemented for macOS in this scaffold");
+        throw std::runtime_error(
+            "headless OpenGL context setup is implemented for macOS in this scaffold");
 #endif
 
         glewExperimental = GL_TRUE;
-        GLenum glewError = glewInit();
+        const GLenum glewError = glewInit();
         glGetError();
         if (glewError != GLEW_OK) {
-            throw std::runtime_error(reinterpret_cast<const char*>(glewGetErrorString(glewError)));
+            throw std::runtime_error(
+                reinterpret_cast<const char*>(glewGetErrorString(glewError)));
         }
     }
 
@@ -212,73 +103,25 @@ private:
 
 void checkGl(const std::string& label)
 {
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::ostringstream oss;
-        oss << label << " failed with GL error 0x" << std::hex << err;
-        throw std::runtime_error(oss.str());
+    const GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::ostringstream message;
+        message << label << " failed with GL error 0x" << std::hex << error;
+        throw std::runtime_error(message.str());
     }
 }
 
 std::vector<GpuMesh> uploadSceneMeshes(const Scene& scene)
 {
     std::vector<GpuMesh> meshes;
+    meshes.reserve(scene.objects.size());
     for (const SceneObject& object : scene.objects) {
-        std::vector<Vertex> vertices = loadObjMesh(object.objPath, object.color, object.positionOffset);
-        meshes.emplace_back(object.objPath.filename().string(), vertices, object.emissive);
+        std::vector<Vertex> vertices = loadObjMesh(
+            object.objPath, object.color, object.positionOffset);
+        meshes.emplace_back(
+            object.objPath.filename().string(), vertices, object.emissive);
     }
     return meshes;
-}
-
-std::vector<ShadowMap> renderShadowMaps(const AppConfig& config,
-    const std::vector<GpuMesh>& meshes,
-    const std::vector<PointLight>& lights,
-    const ShaderProgram& shadowShader,
-    const ShadowSettings& settings)
-{
-    std::vector<ShadowMap> shadowMaps;
-    shadowMaps.reserve(lights.size());
-
-    for (const PointLight& light : lights) {
-        shadowMaps.emplace_back(config.shadowMapSize);
-        shadowMaps.back().render(meshes, shadowShader, light.position, settings);
-    }
-    return shadowMaps;
-}
-
-void bindLightUniforms(const ShaderProgram& shader,
-    const PointLight& light,
-    const ShadowMap& shadowMap,
-    size_t lightCount,
-    bool firstLightingPass)
-{
-    shadowMap.bind(GL_TEXTURE0);
-    shader.setInt("uShadowMap", 0);
-    shader.setMat4("uLightViewProjection", shadowMap.lightViewProjection());
-    shader.setVec3("uLightPosition", light.position);
-    shader.setVec3("uLightColor", light.color);
-    shader.setFloat("uInvLightCount", 1.0f / static_cast<float>(lightCount));
-    shader.setBool("uFirstLightingPass", firstLightingPass);
-}
-
-void configureLightingPass(size_t lightIndex)
-{
-    if (lightIndex == 0) {
-        glDisable(GL_BLEND);
-        glDepthMask(GL_TRUE);
-        glDepthFunc(GL_LESS);
-        glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-        glColorMaski(1, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        return;
-    }
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE);
-    glDepthMask(GL_FALSE);
-    glDepthFunc(GL_LEQUAL);
-    glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glColorMaski(1, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 }
 
 Mat4 sceneView(const SceneCamera& camera)
@@ -295,6 +138,134 @@ Mat4 sceneProjection(const SceneCamera& camera, const AppConfig& config)
         camera.farPlane);
 }
 
+std::vector<ShadowMap> renderShadowMaps(const AppConfig& config,
+    const std::vector<GpuMesh>& meshes,
+    const std::vector<PointLight>& lights,
+    const ShaderProgram& shader,
+    const ShadowSettings& settings)
+{
+    std::vector<ShadowMap> shadowMaps;
+    shadowMaps.reserve(lights.size());
+
+    for (const PointLight& light : lights) {
+        shadowMaps.emplace_back(config.shadowMapSize);
+        shadowMaps.back().render(meshes, shader, light.position, settings);
+    }
+    return shadowMaps;
+}
+
+void renderGeometryPass(const AppConfig& config,
+    const Scene& scene,
+    const std::vector<GpuMesh>& meshes,
+    const ShaderProgram& shader,
+    const GeometryBuffer& geometryBuffer)
+{
+    geometryBuffer.bind();
+    glViewport(0, 0, config.width, config.height);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    shader.use();
+    shader.setMat4("uView", sceneView(scene.camera));
+    shader.setMat4("uProjection", sceneProjection(scene.camera, config));
+
+    for (const GpuMesh& mesh : meshes) {
+        shader.setBool("uEmissive", mesh.emissive());
+        mesh.draw();
+    }
+    glBindVertexArray(0);
+    checkGl("geometry pass");
+}
+
+void bindLightingInputs(const ShaderProgram& shader,
+    const GeometryBuffer& geometryBuffer,
+    const AmbientOcclusionBuffer& ambientOcclusionBuffer)
+{
+    geometryBuffer.bindPosition(kPositionUnit);
+    geometryBuffer.bindNormal(kNormalUnit);
+    geometryBuffer.bindMaterial(kMaterialUnit);
+    geometryBuffer.bindDepth(kDepthUnit);
+    ambientOcclusionBuffer.bindTexture(kAmbientOcclusionUnit);
+
+    shader.setInt("uPosition", 0);
+    shader.setInt("uNormal", 1);
+    shader.setInt("uMaterial", 2);
+    shader.setInt("uDepth", 3);
+    shader.setInt("uAmbientOcclusion", 4);
+    shader.setInt("uShadowMap", 5);
+}
+
+void bindLight(const ShaderProgram& shader,
+    const PointLight& light,
+    const ShadowMap& shadowMap,
+    size_t lightCount,
+    bool firstLightingPass)
+{
+    shadowMap.bind(kShadowUnit);
+    shader.setMat4("uLightViewProjection", shadowMap.lightViewProjection());
+    shader.setVec3("uLightPosition", light.position);
+    shader.setVec3("uLightColor", light.color);
+    shader.setFloat("uInvLightCount", 1.0f / static_cast<float>(lightCount));
+    shader.setBool("uFirstLightingPass", firstLightingPass);
+}
+
+void configureLightAccumulation(size_t lightIndex)
+{
+    if (lightIndex == 0) {
+        glDisable(GL_BLEND);
+        return;
+    }
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+}
+
+void renderLightingPass(const AppConfig& config,
+    const Scene& scene,
+    const std::vector<PointLight>& lights,
+    const std::vector<ShadowMap>& shadowMaps,
+    const GeometryBuffer& geometryBuffer,
+    const AmbientOcclusionBuffer& ambientOcclusionBuffer,
+    const LightingBuffer& lightingBuffer,
+    const FullscreenTriangle& fullscreenTriangle,
+    const ShaderProgram& shader)
+{
+    lightingBuffer.bind();
+    glViewport(0, 0, config.width, config.height);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glClearColor(0.02f, 0.025f, 0.03f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    shader.use();
+    bindLightingInputs(shader, geometryBuffer, ambientOcclusionBuffer);
+    shader.setVec3("uCameraPosition", scene.camera.position);
+    shader.setVec3("uBackgroundColor", Vec3(0.02f, 0.025f, 0.03f));
+    shader.setFloat("uAmbientStrength", config.ambientStrength);
+    shader.setFloat("uLightIntensity", config.lightIntensity);
+    shader.setFloat("uShininess", 32.0f);
+    shader.setFloat("uSpecularStrength", 0.0f);
+
+    for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
+        configureLightAccumulation(lightIndex);
+        bindLight(shader,
+            lights[lightIndex],
+            shadowMaps[lightIndex],
+            lights.size(),
+            lightIndex == 0);
+        fullscreenTriangle.draw();
+    }
+
+    glBindVertexArray(0);
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
+    checkGl("lighting pass");
+}
+
 } // namespace
 
 void Renderer::render(const AppConfig& config)
@@ -302,57 +273,49 @@ void Renderer::render(const AppConfig& config)
     OpenGlContext context;
 
     {
-        ShaderProgram shader(kVertexShader, kFragmentShader);
-        ShaderProgram shadowShader(kShadowVertexShader, kShadowFragmentShader);
         const Scene scene = loadScene(config.modelDir);
         std::vector<GpuMesh> meshes = uploadSceneMeshes(scene);
         std::vector<PointLight> lights = sampleAreaLight(
             scene.areaLight, config.areaLightSamplesPerSide);
 
+        ShaderProgram geometryShader(
+            ShaderSources::geometryVertex, ShaderSources::geometryFragment);
+        ShaderProgram lightingShader(
+            ShaderSources::fullscreenVertex, ShaderSources::lightingFragment);
+        ShaderProgram shadowShader(
+            ShaderSources::shadowVertex, ShaderSources::shadowFragment);
+
         std::vector<ShadowMap> shadowMaps = renderShadowMaps(
             config, meshes, lights, shadowShader, scene.shadow);
 
-        Framebuffer framebuffer(config.width, config.height);
+        GeometryBuffer geometryBuffer(config.width, config.height);
+        AmbientOcclusionBuffer ambientOcclusionBuffer(config.width, config.height);
+        LightingBuffer lightingBuffer(config.width, config.height);
+        FullscreenTriangle fullscreenTriangle;
 
-        framebuffer.bind();
-        glViewport(0, 0, config.width, config.height);
-        glEnable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
-        glClearColor(0.02f, 0.025f, 0.03f, 1.0f);
+        renderGeometryPass(config, scene, meshes, geometryShader, geometryBuffer);
 
-        shader.use();
-        shader.setMat4("uView", sceneView(scene.camera));
-        shader.setMat4("uProjection", sceneProjection(scene.camera, config));
-        shader.setVec3("uCameraPosition", scene.camera.position);
-        shader.setFloat("uAmbientStrength", config.ambientStrength);
-        shader.setFloat("uLightIntensity", config.lightIntensity);
-        shader.setFloat("uShadowMinLight", config.shadowMinLight);
-        shader.setFloat("uShininess", 32.0f);
-        shader.setFloat("uSpecularStrength", 0.0f);
+        // SSAO will replace this neutral texture with computed visibility values.
+        ambientOcclusionBuffer.clearNeutral();
 
-        for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
-            configureLightingPass(lightIndex);
-            bindLightUniforms(shader, lights[lightIndex], shadowMaps[lightIndex], lights.size(), lightIndex == 0);
+        renderLightingPass(config,
+            scene,
+            lights,
+            shadowMaps,
+            geometryBuffer,
+            ambientOcclusionBuffer,
+            lightingBuffer,
+            fullscreenTriangle,
+            lightingShader);
 
-            for (const GpuMesh& mesh : meshes) {
-                shader.setBool("uEmissive", mesh.emissive());
-                mesh.draw();
-            }
-        }
-        glBindVertexArray(0);
-        glDisable(GL_BLEND);
-        glDepthMask(GL_TRUE);
-        glDepthFunc(GL_LESS);
-        glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-        glColorMaski(1, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-        checkGl("render");
-
-        framebuffer.writeColor(config.colorOutput);
-        framebuffer.writeNormalDebug(config.normalOutput);
-        framebuffer.writeDepthDebug(config.depthOutput);
+        lightingBuffer.writeColor(config.colorOutput);
+        geometryBuffer.writeNormalDebug(config.normalOutput);
+        geometryBuffer.writeDepthDebug(config.depthOutput);
+        ambientOcclusionBuffer.writeDebug(config.ambientOcclusionOutput);
     }
 
     std::cout << "Wrote " << config.colorOutput << "\n";
     std::cout << "Wrote " << config.normalOutput << "\n";
     std::cout << "Wrote " << config.depthOutput << "\n";
+    std::cout << "Wrote " << config.ambientOcclusionOutput << "\n";
 }
