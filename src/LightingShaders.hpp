@@ -89,9 +89,9 @@ void main() {
     vec3 lightDirection = normalize(uLightPosition - worldPosition);
     vec3 viewDirection = normalize(uCameraPosition - worldPosition);
     vec3 halfwayDirection = normalize(lightDirection + viewDirection);
-    float diffuseFactor = max(abs(dot(normal, lightDirection)), 0.0);
+    float diffuseFactor = max(dot(normal, lightDirection), 0.0);
     float specularFactor = pow(
-        max(abs(dot(normal, halfwayDirection)), 0.0), uShininess);
+        max(dot(normal, halfwayDirection), 0.0), uShininess);
     float shadow = pointShadow(worldPosition, normal);
 
     float ao = texture(uAO, vUv).r;
